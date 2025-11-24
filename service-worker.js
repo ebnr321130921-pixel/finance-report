@@ -1,3 +1,4 @@
+
 const CACHE_NAME = "finance-report-cache-v1";
 const urlsToCache = [
   "./",
