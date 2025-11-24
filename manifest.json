@@ -1,11 +1,15 @@
 {
   "name": "Finance Report",
-  "short_name": "Finance",
-  "icons": [{
-    "src": "icon.png",
-    "sizes": "512x512",
-    "type": "image/png"
-  }],
-  "start_url": "index.html",
-  "display": "standalone"
+  "short_name": "FinanceReport",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
 }
