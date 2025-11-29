@@ -4,13 +4,20 @@
 <head>
 <meta charset="utf-8">
 <title>Finance Dashboard</title>
+
+<!-- PWA Cache Control -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+
+<link rel="manifest" href="manifest.json">
+
 <style>
 
 body {
     margin: 0;
     padding: 20px;
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial;
-
     background: linear-gradient(
         to bottom,
         #d7d7d7 0%,
@@ -20,16 +27,15 @@ body {
     ),
     repeating-linear-gradient(
         to right,
-        rgba(255,255,255,0.18) 0px,
-        rgba(255,255,255,0.18) 2px,
-        rgba(0,0,0,0.09) 4px,
-        rgba(0,0,0,0.09) 6px
+        rgba(255,255,255,0.20) 0px,
+        rgba(255,255,255,0.20) 2px,
+        rgba(0,0,0,0.10) 4px,
+        rgba(0,0,0,0.10) 6px
     );
     background-blend-mode: overlay;
     background-size: 100% 100%, 6px 100%;
-    color: #333;
+    color: #444; /* 少し薄く */
 }
-
 .card {
     background: rgba(255,255,255,0.28);
     backdrop-filter: blur(10px);
@@ -37,59 +43,54 @@ body {
     padding: 18px 20px;
     margin-bottom: 28px;
     border: 1px solid rgba(255,255,255,0.55);
-    box-shadow:
-        0 1px 3px rgba(255,255,255,0.6) inset,
-        0 4px 14px rgba(0,0,0,0.28);
+    box-shadow: 0 1px 3px rgba(255,255,255,0.6) inset,
+                0 4px 14px rgba(0,0,0,0.25);
 }
-
-h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px 0; color:#333; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 18px 0; color:#333; }
 h2 { font-size: 14px; font-weight: 500; margin: 0 0 10px 0; color:#444; }
-
-.time {
-    margin-bottom: 16px;
-    font-size: 13px;
-    color: #555;
-}
-
 .section { display: flex; gap: 18px; justify-content: space-between; }
 .imghalf { width: 48%; border-radius: 10px; overflow: hidden; }
 img { width: 100%; display: block; }
 
-a {
-    display: block;
-    padding: 14px;
-    margin: 10px 0;
-    text-align: center;
-    background: linear-gradient(#ffffff 0%, #eeeeee 40%, #d6d6d6 100%);
-    border-radius: 14px;
-    border: 1px solid rgba(0,0,0,0.25);
-    text-decoration: none;
-    color: #333;
-}
-
-.wrap { max-width: 900px; margin: 0 auto; }
-.cardx {
+.indexwrap { max-width: 900px; margin: 0 auto; }
+.indexcard {
     background: rgba(255,255,255,0.28);
     backdrop-filter: blur(10px);
     border-radius: 14px;
     padding: 20px;
-    margin-bottom: 28px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
     border: 1px solid rgba(255,255,255,0.55);
+    margin-bottom: 28px;
 }
-.title { font-size: 20px; font-weight:600; margin-bottom:6px; color:#333; }
+.index_title { font-size: 20px; font-weight:600; margin-bottom:18px; }
+.index_btns { display:flex; flex-direction:column; gap:14px; }
+.timestamp { font-size:12px; color:#555; margin-top:10px; }
 </style>
 </head>
 
 <body>
-<div class="wrap">
-<div class="cardx">
-    <div class="title">Finance Dashboard</div>
-    <div class="time">最終更新：2025-11-30 08:38 JST</div>
+<div class="indexwrap">
 
-    <a href="analysis_report.html">📈 Analysis Report</a>
-    <a href="us_market.html">📊 US Market (coming soon)</a>
-    <a href="rakuten.html">🏦 Rakuten (coming soon)</a>
+<div class="indexcard">
+    <div class="index_title">Finance Dashboard</div>
+
+    <div class="timestamp">Last Updated: 2025-11-30 08:48</div>
+
+    <div class="index_btns">
+        <a href="analysis_report.html">📈 Analysis Report</a>
+        <a href="#" style="opacity:0.5; pointer-events:none;">📊 US Market (coming soon)</a>
+        <a href="#" style="opacity:0.5; pointer-events:none;">💰 Rakuten Data (coming soon)</a>
+    </div>
 </div>
+
 </div>
+
+<!-- Service Worker -->
+<script>
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js");
+}
+</script>
+
 </body>
 </html>
