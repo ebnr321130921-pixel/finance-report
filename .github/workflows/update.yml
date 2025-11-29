@@ -1,8 +1,14 @@
 name: Auto Update Finance Report
 
+permissions:
+  contents: write
+
 on:
   schedule:
-    - cron: "0 21 * * *"
+    - cron: "0 21 * * *"   # JST 06:00
+    - cron: "0 3 * * *"    # JST 12:00
+    - cron: "0 9 * * *"    # JST 18:00
+    - cron: "0 15 * * *"   # JST 00:00
   workflow_dispatch:
 
 jobs:
@@ -33,4 +39,3 @@ jobs:
           git add .
           git commit -m "Auto update finance report" || echo "No changes to commit"
           git push
-
