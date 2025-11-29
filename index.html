@@ -27,7 +27,7 @@ body {
     );
     background-blend-mode: overlay;
     background-size: 100% 100%, 6px 100%;
-    color: #222;
+    color: #333;
 }
 
 .card {
@@ -42,8 +42,14 @@ body {
         0 4px 14px rgba(0,0,0,0.28);
 }
 
-h1 { font-size: 22px; font-weight: 600; margin: 0 0 18px 0; }
-h2 { font-size: 14px; font-weight: 500; margin: 0 0 10px 0; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px 0; color:#333; }
+h2 { font-size: 14px; font-weight: 500; margin: 0 0 10px 0; color:#444; }
+
+.time {
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #555;
+}
 
 .section { display: flex; gap: 18px; justify-content: space-between; }
 .imghalf { width: 48%; border-radius: 10px; overflow: hidden; }
@@ -52,42 +58,38 @@ img { width: 100%; display: block; }
 a {
     display: block;
     padding: 14px;
-    margin: 16px 0;
+    margin: 10px 0;
     text-align: center;
     background: linear-gradient(#ffffff 0%, #eeeeee 40%, #d6d6d6 100%);
     border-radius: 14px;
     border: 1px solid rgba(0,0,0,0.25);
     text-decoration: none;
-    color: #222;
+    color: #333;
 }
 
-.indexwrap { max-width: 900px; margin: 0 auto; }
-.indexcard {
+.wrap { max-width: 900px; margin: 0 auto; }
+.cardx {
     background: rgba(255,255,255,0.28);
     backdrop-filter: blur(10px);
     border-radius: 14px;
     padding: 20px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-    border: 1px solid rgba(255,255,255,0.55);
     margin-bottom: 28px;
+    border: 1px solid rgba(255,255,255,0.55);
 }
-.index_title { font-size: 20px; font-weight:600; margin-bottom:18px; }
-.index_btns { display:flex; flex-direction:column; gap:14px; }
+.title { font-size: 20px; font-weight:600; margin-bottom:6px; color:#333; }
 </style>
 </head>
 
 <body>
-<div class="indexwrap">
+<div class="wrap">
+<div class="cardx">
+    <div class="title">Finance Dashboard</div>
+    <div class="time">最終更新：2025-11-30 08:33 JST</div>
 
-<div class="indexcard">
-    <div class="index_title">Finance Dashboard</div>
-
-    <div class="index_btns">
-        <a href="analysis_report.html">📈 Analysis Report</a>
-        <a href="run_update.command">🔄 更新する（CSV & HTML 再生成）</a>
-    </div>
+    <a href="analysis_report.html">📈 Analysis Report</a>
+    <a href="us_market.html">📊 US Market (coming soon)</a>
+    <a href="rakuten.html">🏦 Rakuten (coming soon)</a>
 </div>
-
 </div>
 </body>
 </html>
