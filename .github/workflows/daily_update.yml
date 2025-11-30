@@ -2,11 +2,7 @@ name: Daily Data Update
 
 on:
   schedule:
-    # JST = UTC + 9
-    - cron: "0 22 * * *"   # 07:00 JST
-    - cron: "0 9 * * *"    # 18:00 JST
-    - cron: "0 11 * * *"   # 20:00 JST
-    - cron: "0 13 * * *"   # 22:00 JST
+    - cron: '0 9,22,11,13 * * *'   # JST 18:00/20:00/22:00/7:00（UTCへ変換）
   workflow_dispatch:
 
 jobs:
@@ -14,56 +10,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up job
-        run: echo "Starting update..."
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
         with:
-          fetch-depth: 0   # pull --rebase のために全履歴を取得
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pandas requests beautifulsoup4 lxml yfinance
+          pip install -r ${{ github.workspace }}/requirements.txt
 
-      # ====== QQQ / SP500 Update ======
       - name: Run QQQ / SP500 updater
         run: |
           cd 1_QQQ-SP500
-          python update_all.py
+          python3 update_all.py
 
-      # ====== Rakuten Update ======
       - name: Run Rakuten updater
         run: |
           cd 2_RAKUTEN
-          python rakuten_update.py
+          python3 rakuten_update.py
 
-      # ====== US Index Update ======
       - name: Run US Index updater
         run: |
           cd 3_US_Index
-          python us_index_daily.py
+          python3 us_index_daily.py
 
-      # ====== Commit & Push ======
       - name: Commit and push changes
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-
+          git pull --rebase
           git add -A
-          git commit -m "Auto update (4 times/day)" || echo "No changes to commit"
-
-          # ⚠️ 競合を100%防ぐ：rebase pull
-          git pull --rebase origin main || true
-
-          # Push after resolving differences
-          git push origin main
-
-      - name: Complete job
-        run: echo "Update complete!"
+          git commit -m "Auto update" || echo "No changes to commit"
+          git push
