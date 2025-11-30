@@ -1,8 +1,8 @@
 pandas
 numpy
+matplotlib
+yfinance
 requests
 beautifulsoup4
 lxml
-matplotlib
 html5lib
-yfinance
