@@ -2,7 +2,7 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: '0 9,22,11,13 * * *'   # JST 18:00/20:00/22:00/7:00（UTCへ変換）
+    - cron: '0 9,22,11,13 * * *'  # JST 18:00/20:00/22:00/7:00
   workflow_dispatch:
 
 jobs:
@@ -11,14 +11,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install -r ${{ github.workspace }}/requirements.txt
+          pip install --no-cache-dir --upgrade -r ${{ github.workspace }}/requirements.txt
 
       - name: Run QQQ / SP500 updater
         run: |
