@@ -1,0 +1,140 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Rakuten Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  margin:0;
+  background:#e8e8e8;
+  font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue';
+}
+.wrapper {
+  max-width:1100px;
+  margin:40px auto;
+  padding:20px;
+}
+.card {
+  background:rgba(255,255,255,0.75);
+  backdrop-filter:blur(20px);
+  padding:24px;
+  border-radius:20px;
+  margin-bottom:40px;
+  box-shadow:0 8px 30px rgba(0,0,0,0.1);
+}
+.card h2 {
+  margin:0 0 12px;
+  font-size:22px;
+  font-weight:600;
+}
+canvas {
+  width:100%;
+  height:360px;
+}
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+<div class="card"><h2>Daily Price</h2><canvas id="daily_price"></canvas></div>
+<div class="card"><h2>Daily Return (%)</h2><canvas id="daily_return"></canvas></div>
+<div class="card"><h2>Daily Cumulative (%)</h2><canvas id="daily_cum"></canvas></div>
+
+<div class="card"><h2>Monthly Price</h2><canvas id="month_price"></canvas></div>
+<div class="card"><h2>Monthly Return (%)</h2><canvas id="month_return"></canvas></div>
+<div class="card"><h2>Monthly Cumulative (%)</h2><canvas id="month_cum"></canvas></div>
+
+</div>
+
+<script>
+const labelsDaily = ["2025-11-30", "2025-11-30"];
+const labelsMonthly = ["2025-11-30"];
+
+const daily_price = {"楽天VTI": [NaN, 17348.0], "楽天VT": [NaN, 15839.0], "USA360": [NaN, 39297.0], "楽天Nasdaq100": [NaN, 12995.0]};
+const daily_return = {"楽天VTI": [NaN, 0.0], "楽天VT": [NaN, 0.0], "USA360": [NaN, 0.0], "楽天Nasdaq100": [NaN, 0.0]};
+const daily_cum = {"楽天VTI": [NaN, 0.0], "楽天VT": [NaN, 0.0], "USA360": [NaN, 0.0], "楽天Nasdaq100": [NaN, 0.0]};
+
+const monthly_price = {"楽天VTI": [17348.0], "楽天VT": [15839.0], "USA360": [39297.0], "楽天Nasdaq100": [12995.0]};
+const monthly_return = {"楽天VTI": [0.0], "楽天VT": [0.0], "USA360": [0.0], "楽天Nasdaq100": [0.0]};
+const monthly_cum = {"楽天VTI": [0.0], "楽天VT": [0.0], "USA360": [0.0], "楽天Nasdaq100": [0.0]};
+
+const colors = ["#007AFF","#FF3B30","#34C759","#AF52DE"];
+
+function makeDataset(obj){
+    let out=[];
+    let i=0;
+    for(let k in obj){
+        out.push({
+            label:k,
+            data:obj[k],
+            borderColor:colors[i%4],
+            backgroundColor:colors[i%4],
+            tension:0.2,
+            fill:false
+        });
+        i++;
+    }
+    return out;
+}
+
+function makeBarDataset(obj){
+    let out=[];
+    let i=0;
+    for(let k in obj){
+        out.push({
+            label:k,
+            data:obj[k],
+            backgroundColor:colors[i%4]
+        });
+        i++;
+    }
+    return out;
+}
+
+function lineChart(id, labels, obj, yLabel){
+    new Chart(document.getElementById(id),{
+        type:"line",
+        data:{ labels:labels, datasets:makeDataset(obj) },
+        options:{
+            scales:{
+                x:{ title:{ display:true, text:"Date" } },
+                y:{
+                    title:{ display:true, text:yLabel },
+                    ticks:{ callback:(v)=> yLabel.includes("%") ? v+"%" : v }
+                }
+            }
+        }
+    });
+}
+
+function barChart(id, labels, obj, yLabel){
+    new Chart(document.getElementById(id),{
+        type:"bar",
+        data:{ labels:labels, datasets:makeBarDataset(obj) },
+        options:{
+            scales:{
+                x:{ title:{ display:true, text:"Month" } },
+                y:{
+                    title:{ display:true, text:yLabel },
+                    ticks:{ callback:(v)=> yLabel.includes("%") ? v+"%" : v }
+                }
+            }
+        }
+    });
+}
+
+lineChart("daily_price", labelsDaily, daily_price, "Price");
+lineChart("daily_return", labelsDaily, daily_return, "Return (%)");
+lineChart("daily_cum", labelsDaily, daily_cum, "Cumulative (%)");
+
+barChart("month_price", labelsMonthly, monthly_price, "Price");
+barChart("month_return", labelsMonthly, monthly_return, "Return (%)");
+barChart("month_cum", labelsMonthly, monthly_cum, "Cumulative (%)");
+
+</script>
+</body>
+</html>
