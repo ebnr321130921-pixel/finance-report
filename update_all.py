@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import base64
 from io import BytesIO
 import yfinance as yf
-from datetime import datetime
 
 # =========================================
 #  BASE_DIR
@@ -44,7 +43,6 @@ def write_manifest():
 """
     with open(MANIFEST, "w", encoding="utf-8") as f:
         f.write(content)
-
 
 def write_sw():
     content = """self.addEventListener('install', (e) => {
@@ -159,7 +157,7 @@ body {
     );
     background-blend-mode: overlay;
     background-size: 100% 100%, 6px 100%;
-    color: #444; /* 少し薄く */
+    color: #444;
 }
 .card {
     background: rgba(255,255,255,0.28);
@@ -198,7 +196,7 @@ def plot_correlation(x, y, label):
     slope, intercept = np.polyfit(x, y, 1)
     r2 = np.corrcoef(x, y)[0, 1] ** 2
 
-    ax.scatter(x*100, y*100, s=10, color="#7bb0ff", alpha=0.6)
+    ax.scatter(x*100, y*100, s=8, color="#7bb0ff", alpha=0.6)
 
     xr = np.array([-15, 15])
     yr = slope*(xr/100)*100 + intercept*100
@@ -226,7 +224,7 @@ def plot_monthly(sp_arr, q_arr, title1, title2, ylimit, is_overall=False):
 
     ax.bar(x-0.2, sp_arr*100, width=0.4, color="#ffb3cc")
     ax.bar(x+0.2, q_arr*100, width=0.4, color="#bcdfff")
-    ax.plot(x, diff, color="#d43f3a", marker="o", markersize=3, linewidth=1.2)
+    ax.plot(x, diff, color="#d43f3a", marker="o", markersize=2.2, linewidth=1.1)
 
     if is_overall:
         ax.set_ylim(-5,5)
@@ -263,7 +261,7 @@ def plot_annual_summary(ann_q, ann_s, years20):
 
     ax.bar(x-0.15, asv, width=0.3, color="#ffb3cc", label="SP500")
     ax.bar(x+0.15, aq, width=0.3, color="#bcdfff", label="QQQ")
-    ax.plot(x, diff, color="#d43f3a", marker="o", markersize=3, linewidth=1.2, label="Diff")
+    ax.plot(x, diff, color="#d43f3a", marker="o", markersize=2.5, linewidth=1.2, label="Diff")
 
     ax.set_ylim(-60,60)
     ax.set_yticks(np.arange(-60,61,10))
@@ -296,7 +294,6 @@ def build_analysis_html(df, monthly_map, ann_q, ann_s, years20):
         "Overall (20 years)"
     )
 
-    # mean monthly
     sp_all = np.array([monthly_map[y]["SP500"] for y in years20])
     q_all = np.array([monthly_map[y]["QQQ"] for y in years20])
     sp_mean = sp_all.mean(axis=0)
@@ -320,7 +317,6 @@ def build_analysis_html(df, monthly_map, ann_q, ann_s, years20):
 </div>
 """)
 
-    # Annual
     ann_img = plot_annual_summary(ann_q, ann_s, years20)
 
     html.append(f"""
@@ -372,7 +368,7 @@ def build_analysis_html(df, monthly_map, ann_q, ann_s, years20):
 
 
 # =========================================
-#  index.html (PWA tags included)
+#  index.html — Apple純正UI
 # =========================================
 def build_index_html(timestamp_str):
     html = f"""
@@ -382,28 +378,124 @@ def build_index_html(timestamp_str):
 <meta charset="utf-8">
 <title>Finance Dashboard</title>
 
-<!-- PWA Cache Control -->
+<link rel="manifest" href="manifest.json">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 
-<link rel="manifest" href="manifest.json">
-
 <style>
-{METAL_CSS}
-.indexwrap {{ max-width: 900px; margin: 0 auto; }}
-.indexcard {{
-    background: rgba(255,255,255,0.28);
-    backdrop-filter: blur(10px);
-    border-radius: 14px;
-    padding: 20px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-    border: 1px solid rgba(255,255,255,0.55);
-    margin-bottom: 28px;
+
+/* Apple純正 UIスタイル */
+body {{
+    margin: 0;
+    padding: 28px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial;
+    background: linear-gradient(
+        to bottom,
+        #d7d7d7 0%,
+        #cfcfcf 40%,
+        #c5c5c5 55%,
+        #dcdcdc 100%
+    ),
+    repeating-linear-gradient(
+        to right,
+        rgba(255,255,255,0.20) 0px,
+        rgba(255,255,255,0.20) 2px,
+        rgba(0,0,0,0.10) 4px,
+        rgba(0,0,0,0.10) 6px
+    );
+    background-blend-mode: overlay;
+    background-size: 100% 100%, 6px 100%;
+    color: #222;
 }}
-.index_title {{ font-size: 20px; font-weight:600; margin-bottom:18px; }}
-.index_btns {{ display:flex; flex-direction:column; gap:14px; }}
-.timestamp {{ font-size:12px; color:#555; margin-top:10px; }}
+
+.indexwrap {{
+    max-width: 900px;
+    margin: 0 auto;
+}}
+
+.indexcard {{
+    background: rgba(255,255,255,0.32);
+    backdrop-filter: blur(18px);
+    border-radius: 20px;
+    padding: 24px 26px;
+    box-shadow:
+        0 2px 6px rgba(0,0,0,0.12),
+        0 10px 25px rgba(0,0,0,0.10);
+    border: 1px solid rgba(255,255,255,0.45);
+    margin-bottom: 34px;
+}}
+
+.index_title {{
+    font-size: 22px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 22px;
+}}
+
+.timestamp {{
+    font-size: 15px;
+    font-weight: 600;
+    color: #555;
+    margin: 0 0 22px 0;
+}}
+
+.section_header {{
+    font-size: 14px;
+    font-weight: 600;
+    color: #888;
+    margin: 22px 0 10px 2px;
+}}
+
+.index_list {{
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.35);
+    border: 1px solid rgba(255,255,255,0.5);
+    backdrop-filter: blur(12px);
+}}
+
+.index_row {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    font-size: 16px;
+    color: #222;
+    border-bottom: 1px solid rgba(255,255,255,0.55);
+}}
+
+.index_row:last-child {{
+    border-bottom: none;
+}}
+
+.index_row_left {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+
+.index_row_icon {{
+    font-size: 20px;
+    width: 22px;
+    text-align: center;
+}}
+
+.index_row_arrow {{
+    font-size: 18px;
+    color: #888;
+}}
+
+.index_row_disabled {{
+    opacity: 0.45;
+    pointer-events: none;
+}}
+
+.index_row a {{
+    text-decoration: none;
+    color: #222;
+}}
+
 </style>
 </head>
 
@@ -415,16 +507,38 @@ def build_index_html(timestamp_str):
 
     <div class="timestamp">Last Updated: {timestamp_str}</div>
 
-    <div class="index_btns">
-        <a href="analysis_report.html">📈 Analysis Report</a>
-        <a href="#" style="opacity:0.5; pointer-events:none;">📊 US Market (coming soon)</a>
-        <a href="#" style="opacity:0.5; pointer-events:none;">💰 Rakuten Data (coming soon)</a>
+    <div class="section_header">REPORTS</div>
+    <div class="index_list">
+
+        <div class="index_row">
+            <div class="index_row_left">
+                <span class="index_row_icon">📈</span>
+                <a href="analysis_report.html">Analysis Report</a>
+            </div>
+            <span class="index_row_arrow">›</span>
+        </div>
+
+        <div class="index_row index_row_disabled">
+            <div class="index_row_left">
+                <span class="index_row_icon">📊</span>
+                <span>US Market (coming soon)</span>
+            </div>
+            <span class="index_row_arrow">›</span>
+        </div>
+
+        <div class="index_row index_row_disabled">
+            <div class="index_row_left">
+                <span class="index_row_icon">💰</span>
+                <span>Rakuten Data (coming soon)</span>
+            </div>
+            <span class="index_row_arrow">›</span>
+        </div>
+
     </div>
 </div>
 
 </div>
 
-<!-- Service Worker -->
 <script>
 if ("serviceWorker" in navigator) {{
     navigator.serviceWorker.register("sw.js");
@@ -448,7 +562,6 @@ if __name__ == "__main__":
     monthly_map = {}
     years = sorted(set(monthly_raw.index.year))
 
-    # latest 20 years
     years20 = years[-20:]
 
     for y in years:
@@ -489,11 +602,12 @@ if __name__ == "__main__":
     write_manifest()
     write_sw()
 
-    # timestamp
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # timestamp JST
+    from datetime import datetime, timedelta
+    now = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M JST")
 
     # HTML
     build_analysis_html(df, monthly_map, ann_q, ann_s, years20)
     build_index_html(now)
 
-    print("✔ Finance Dashboard updated (PWA enabled).")
+    print("✔ Finance Dashboard updated (Apple UI + PWA enabled).")
