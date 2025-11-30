@@ -2,7 +2,16 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    # JST 07:00（UTC 22:00）
+    - cron: '0 22 * * *'
+    # JST 18:00（UTC 09:00）
+    - cron: '0 9 * * *'
+    # JST 20:00（UTC 11:00）
+    - cron: '0 11 * * *'
+    # JST 22:00（UTC 13:00）
+    - cron: '0 13 * * *'
+
+  # 手動実行
   workflow_dispatch:
 
 jobs:
@@ -42,5 +51,5 @@ jobs:
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add -A
-          git commit -m "Daily auto update" || echo "No changes to commit"
+          git commit -m "Auto update (4 times/day)" || echo "No changes to commit"
           git push
