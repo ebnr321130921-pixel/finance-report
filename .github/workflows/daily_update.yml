@@ -2,7 +2,12 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: '0 9,22,11,13 * * *'  # JST 18:00/20:00/22:00/7:00
+    # JST 7:00 / 18:00 / 20:00 / 22:00
+    # UTC = JST - 9
+    - cron: '0 22 * * *'   # JST 7:00
+    - cron: '0 9 * * *'    # JST 18:00
+    - cron: '0 11 * * *'   # JST 20:00
+    - cron: '0 13 * * *'   # JST 22:00
   workflow_dispatch:
 
 jobs:
@@ -18,28 +23,48 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir --upgrade -r ${{ github.workspace }}/requirements.txt
+          pip install -r "$(github.workspace)/requirements.txt"
 
+      # ================================
+      #  QQQ / SP500
+      # ================================
       - name: Run QQQ / SP500 updater
         run: |
           cd 1_QQQ-SP500
           python3 update_all.py
 
+      # ================================
+      #  Rakuten
+      # ================================
       - name: Run Rakuten updater
         run: |
           cd 2_RAKUTEN
           python3 rakuten_update.py
 
+      # ================================
+      #  US Index
+      # ================================
       - name: Run US Index updater
         run: |
           cd 3_US_Index
           python3 us_index_daily.py
 
+      # ================================
+      #  Commit & Push (完全修正版)
+      # ================================
       - name: Commit and push changes
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          git pull --rebase
+
+          # 変更を全てステージング
           git add -A
-          git commit -m "Auto update" || echo "No changes to commit"
+
+          # 差分がある場合のみ commit
+          git diff --cached --quiet || git commit -m "Auto update"
+
+          # pull は commit の後！ ← これが重要
+          git pull --rebase
+
+          # 最後に push
           git push
