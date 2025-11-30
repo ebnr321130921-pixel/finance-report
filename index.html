@@ -1,0 +1,99 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Finance Dashboard</title>
+
+<style>
+body {
+    margin:0;
+    padding:24px;
+    background:#f2f3f5;
+    font-family:-apple-system, BlinkMacSystemFont, Helvetica, Arial;
+}
+
+h1 {
+    font-size:34px;
+    font-weight:700;
+    margin-bottom:8px;
+}
+
+.updated {
+    font-size:18px;
+    color:#666;
+    margin-bottom:28px;
+}
+
+.card {
+    background:white;
+    border-radius:22px;
+    overflow:hidden;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+}
+
+.row {
+    display:flex;
+    align-items:center;
+    padding:20px 22px;
+    border-bottom:1px solid #eeeeee;
+    text-decoration:none;
+}
+
+.row:last-child {
+    border-bottom:none;
+}
+
+.icon {
+    width:40px;
+    height:40px;
+    border-radius:8px;
+    margin-right:18px;
+    object-fit:cover;
+}
+
+.name {
+    flex:1;
+    font-size:22px;
+    color:#222;
+}
+
+.arrow {
+    font-size:28px;
+    color:#bbb;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>Finance Dashboard</h1>
+<div class="updated">Last Updated: 2025-11-30 20:02 JST</div>
+
+<div class="card">
+
+        <a class="row" href="./1_QQQ-SP500/index.html">
+            <img src="./Index_builder/Switching_Report.png" class="icon" />
+            <div class="name">1_QQQ-SP500</div>
+            <div class="arrow">›</div>
+        </a>
+        
+        <a class="row" href="./2_RAKUTEN/index.html">
+            <img src="./Index_builder/Rakuten_Report.png" class="icon" />
+            <div class="name">2_RAKUTEN</div>
+            <div class="arrow">›</div>
+        </a>
+        
+        <a class="row" href="./3_US_Index/index.html">
+            <img src="./Index_builder/US_Index.png" class="icon" />
+            <div class="name">3_US_Index</div>
+            <div class="arrow">›</div>
+        </a>
+        
+</div>
+
+</body>
+</html>
