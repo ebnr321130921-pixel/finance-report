@@ -2,7 +2,16 @@ name: Daily Data Update
 
 on:
   schedule:
-    - cron: '0 9,22,11,13 * * *'   # JST 18:00 / 7:00 / 20:00 / 22:00（UTC換算）
+    # JST 0:00 / 6:00 / 9:00 / 12:00 / 17:00 / 19:00 / 21:00 / 23:00
+    - cron: '0 15 * * *'  # JST 00:00
+    - cron: '0 21 * * *'  # JST 06:00
+    - cron: '0 0 * * *'   # JST 09:00
+    - cron: '0 3 * * *'   # JST 12:00
+    - cron: '0 8 * * *'   # JST 17:00
+    - cron: '0 10 * * *'  # JST 19:00
+    - cron: '0 12 * * *'  # JST 21:00
+    - cron: '0 14 * * *'  # JST 23:00
+
   workflow_dispatch:
 
 jobs:
@@ -10,38 +19,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Repository checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2) Python準備
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # 3) 必要ライブラリインストール
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
 
+      # 4) QQQ / S&P500 アップデータ
       - name: Run QQQ / SP500 updater
         run: |
           cd 1_QQQ-SP500
           python3 update_all.py
 
+      # 5) 楽天ファンドアップデータ
       - name: Run Rakuten updater
         run: |
           cd 2_RAKUTEN
           python3 rakuten_update.py
 
+      # 6) US Index アップデータ
       - name: Run US Index updater
         run: |
           cd 3_US_Index
           python3 us_index_daily.py
 
+      # 7) コミットとプッシュ（競合を起こさず巻き戻しゼロ）
       - name: Commit and push changes
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
+
           git add -A
-          git commit -m "Auto update" || echo "No changes to commit"
-          git pull --rebase
+          git commit -m "Auto update" || echo "No changes"
+
+          # ⚠ pull は削除（巻き戻しの原因）
           git push
