@@ -1,242 +1,457 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import requests
 import pandas as pd
-from bs4 import BeautifulSoup
-from datetime import datetime
-import re
+import numpy as np
+import datetime as dt
+from pathlib import Path
 
-# ==========================================================
-# PATH
-# ==========================================================
-BASE = os.path.dirname(os.path.abspath(__file__))
-RAW = os.path.join(BASE, "daily_raw.csv")
-RECORDS = os.path.join(BASE, "daily_records.csv")
+BASE = Path(__file__).resolve().parent
 
-# ==========================================================
-# MASTER（銘柄マスタ）
-# ==========================================================
-MASTER = [
-    {
-        "fund_id": "JP90C000Q2U6",
-        "url": "https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000Q2U6",
-        "short": "楽天SP500",
-    },
-    {
-        "fund_id": "JP90C000QF22",
-        "url": "https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000QF22",
-        "short": "楽天QQQ",
-    },
-    {
-        "fund_id": "JP90C000FHD2",
-        "url": "https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000FHD2",
-        "short": "楽天VTI",
-    },
-    {
-        "fund_id": "JP90C000MLM1",
-        "url": "https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000MLM1",
-        "short": "楽天レバナス",
-    },
-]
+# ------------------------------------------------------------
+# Utility
+# ------------------------------------------------------------
 
-SHORTS = [m["short"] for m in MASTER]
+def load_csv(name):
+    return pd.read_csv(BASE / name)
 
+def save_csv(df, name):
+    df.to_csv(BASE / name, index=False, encoding="utf-8-sig")
 
-# ==========================================================
-# 文字 → 日付変換
-# ==========================================================
-def normalize_date(x):
-    if pd.isna(x):
-        return None
-    x = str(x).replace("/", "-")
-    dt = pd.to_datetime(x, errors="coerce")
-    if dt is None:
-        return None
-    return dt.strftime("%Y-%m-%d")
+def fmt_yen(x):
+    if pd.isna(x): return ""
+    return f"{int(round(x)):,}"
 
+def fmt_pct(x):
+    if pd.isna(x): return ""
+    return f"{x:.2f}%"
 
-# ==========================================================
-# RECORDS を全て正規化
-# ==========================================================
-def normalize_records(df):
-    # ゴミ列削除
-    df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+# ============================================================
+# LOAD 全データ
+# ============================================================
 
-    # fetch_time
-    df["fetch_time"] = pd.to_datetime(df["fetch_time"], errors="coerce")
+def load_source():
+    rec = load_csv("daily_records.csv")
 
-    for s in SHORTS:
-        # price
-        if s in df.columns:
-            df[s] = pd.to_numeric(df[s], errors="coerce").astype("Int64")
+    # 正規化
+    rec = rec.loc[:, ~rec.columns.str.contains("^Unnamed")]
+    rec["fetch_time"] = pd.to_datetime(rec["fetch_time"], errors="coerce")
 
-        # market_date
-        mcol = f"{s}_market_date"
-        if mcol in df.columns:
-            df[mcol] = df[mcol].apply(normalize_date)
+    # 各列を適切に変換
+    for col in rec.columns:
+        if col.endswith("_market_date") or col == "global_market_date":
+            rec[col] = pd.to_datetime(rec[col], errors="coerce")
+        if col.endswith("_prev_pct") or col.endswith("_prev_diff") or col.endswith("_cum_pct"):
+            rec[col] = pd.to_numeric(rec[col], errors="coerce")
 
-        # 前日比（円）
-        dcol = f"{s}_prev_diff"
-        if dcol in df.columns:
-            df[dcol] = pd.to_numeric(df[dcol], errors="coerce")
+    holdings = load_csv("holdings.csv")
 
-        # 前日比（％）
-        pcol = f"{s}_prev_pct"
-        if pcol in df.columns:
-            df[pcol] = pd.to_numeric(df[pcol], errors="coerce")
+    return rec, holdings
 
-    # global market date
-    if "global_market_date" in df.columns:
-        df["global_market_date"] = df["global_market_date"].apply(normalize_date)
+# ============================================================
+# 1. Today Summary（現状維持）
+# ============================================================
 
+def build_today_summary(rec, holdings):
+
+    latest = rec["global_market_date"].max()
+    rows = rec[rec["global_market_date"] == latest]
+    row = rows.sort_values("fetch_time").iloc[-1]
+
+    products = ["楽天QQQ","楽天SP500","楽天VTI","楽天レバナス"]
+    en = {
+        "楽天QQQ":"Rakuten QQQ",
+        "楽天SP500":"Rakuten S&P 500",
+        "楽天VTI":"Rakuten VTI",
+        "楽天レバナス":"Rakuten LN"
+    }
+
+    out = []
+
+    for jp in products:
+        prod = en[jp]
+        nav = row[jp]
+        diff = row[f"{jp}_prev_diff"]
+        pct = row[f"{jp}_prev_pct"]
+
+        h = holdings[holdings["product"] == prod]
+        units = h["units"].iloc[0] if len(h) else 0
+        value = nav * units / 10000 if nav > 0 else np.nan
+        value_diff = diff * units / 10000 if diff != 0 else np.nan
+
+        out.append({
+            "product": prod,
+            "date": latest.strftime("%Y-%m-%d"),
+            "nav": nav,
+            "prod_diff": diff,
+            "prod_pct": pct,
+            "value": value,
+            "value_diff": value_diff,
+            "value_pct": pct
+        })
+
+    df = pd.DataFrame(out)
+    save_csv(df, "today_summary.csv")
     return df
 
 
-# ==========================================================
-# スクレイピング（値段 + 日付のみ）
-# ==========================================================
-def fetch_fund(url):
-    r = requests.get(url)
-    r.encoding = r.apparent_encoding
-    soup = BeautifulSoup(r.text, "html.parser")
-    text = re.sub(r"\s+", " ", soup.get_text(" "))
+# ============================================================
+# 2. DAILY（棒 + 累積線）
+# 当日 -10日 → +5日
+# pivot_table を完全排除
+# ============================================================
 
-    # 基準価額
-    pm = re.search(r"基準価額\s*([\d,]+)\s*円", text)
-    if not pm:
-        raise ValueError("基準価額が取得できません:" + url)
+def build_daily_trend(rec):
 
-    price = int(pm.group(1).replace(",", ""))
+    latest = rec["global_market_date"].max()
+    start = latest - dt.timedelta(days=10)
+    end   = latest + dt.timedelta(days=5)
+    all_days = pd.date_range(start, end)
 
-    # 市場日 (MM/DD)
-    dm = re.search(r"[（(]\s*(\d{1,2})/(\d{1,2})\s*[）)]", text)
-    if not dm:
-        raise ValueError("市場日が取得できません:" + url)
+    en = {
+        "楽天QQQ":"Rakuten QQQ",
+        "楽天SP500":"Rakuten S&P 500",
+        "楽天VTI":"Rakuten VTI",
+        "楽天レバナス":"Rakuten LN"
+    }
 
-    y = datetime.now().year
-    mdate = datetime(y, int(dm.group(1)), int(dm.group(2))).strftime("%Y-%m-%d")
+    # -------- prev_pct --------
+    pct_cols = ["global_market_date"] + [f"{jp}_prev_pct" for jp in en.keys()]
+    pct_df = rec[pct_cols].drop_duplicates(subset=["global_market_date"], keep="last")
+    pct_df = pct_df.set_index("global_market_date")
+    pct_df = pct_df.rename(columns={f"{jp}_prev_pct":en[jp] for jp in en.keys()})
+    pct_df = pct_df.reindex(all_days)
 
-    return price, mdate
+    # -------- cum_pct --------
+    cum_cols = ["global_market_date"] + [f"{jp}_cum_pct" for jp in en.keys()]
+    cum_df = rec[cum_cols].drop_duplicates(subset=["global_market_date"], keep="last")
+    cum_df = cum_df.set_index("global_market_date")
+    cum_df = cum_df.rename(columns={f"{jp}_cum_pct":en[jp] for jp in en.keys()})
+    cum_df = cum_df.reindex(all_days)
 
+    # -------- 仕上げ --------
+    df = pd.DataFrame({"date": all_days})
+    for jp_en in en.values():
+        df[jp_en] = pct_df[jp_en].values
+        df[f"{jp_en}_cum"] = cum_df[jp_en].values
 
-# ==========================================================
-# RAW（スクレイピング結果）作成
-# ==========================================================
-def fetch_raw():
-    row = {}
-    row["fetch_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    mdates = []
-
-    for m in MASTER:
-        price, mdate = fetch_fund(m["url"])
-        short = m["short"]
-
-        row[short] = price
-        row[f"{short}_market_date"] = mdate
-        mdates.append(mdate)
-
-    row["global_market_date"] = max(mdates)
-
-    df = pd.DataFrame([row])
-    df.to_csv(RAW, index=False, encoding="utf-8-sig")
-
-    print("RAW updated:", RAW)
+    save_csv(df, "daily_chart_data.csv")
     return df
 
 
-# ==========================================================
-# 前日比計算（ファンドごとに market_date を基準に）
-# ==========================================================
-def calc_prev_diff(df):
-    for s in SHORTS:
-        price_col = s
-        mdate_col = f"{s}_market_date"
+# ============================================================
+# 3. WEEKLY（棒 + 累積線）
+# pivot_table 完全排除
+# ============================================================
 
-        if price_col not in df.columns or mdate_col not in df.columns:
+def build_weekly_trend(rec):
+
+    latest = rec["global_market_date"].max()
+    today_week = latest.to_period("W-MON")
+    weeks = [today_week - 3, today_week - 2, today_week - 1, today_week, today_week + 1]
+
+    rec["week"] = rec["global_market_date"].dt.to_period("W-MON")
+
+    en = {
+        "楽天QQQ":"Rakuten QQQ",
+        "楽天SP500":"Rakuten S&P 500",
+        "楽天VTI":"Rakuten VTI",
+        "楽天レバナス":"Rakuten LN"
+    }
+
+    out = []
+
+    for w in weeks:
+        rows = rec[rec["week"] == w].sort_values("global_market_date")
+        if len(rows) == 0:
             continue
 
-        # ファンドごとに market_date 昇順に並べ替えて差分計算
-        temp = df[[price_col, mdate_col]].copy()
-        temp = temp.sort_values(mdate_col)
+        row = {"week": str(w)}
 
-        df[f"{s}_prev_diff"] = temp[price_col].diff().reindex(df.index).fillna(0)
-        df[f"{s}_prev_pct"] = (temp[price_col].pct_change() * 100).reindex(df.index).fillna(0)
+        for jp in en.keys():
+            # weekly pct
+            p0 = rows.iloc[0][jp]
+            p1 = rows.iloc[-1][jp]
+            row[en[jp]] = (p1 / p0 - 1) * 100 if p0 > 0 else np.nan
 
+            # cumulative at week end
+            row[f"{en[jp]}_cum"] = rows.iloc[-1][f"{jp}_cum_pct"]
+
+        out.append(row)
+
+    df = pd.DataFrame(out)
+    save_csv(df, "weekly_chart_data.csv")
     return df
 
 
-# ==========================================================
-# RECORDS 更新処理
-# ==========================================================
-def update_records(raw):
-    # 新しい行
-    new_row = raw.iloc[0].to_dict()
-    new_row["fetch_time"] = pd.to_datetime(new_row["fetch_time"])
-    gmd = new_row["global_market_date"]
+# ============================================================
+# 4. 全期間累積（最新 20 点）
+# Simple pivot（手動）
+# ============================================================
 
-    # 初回
-    if not os.path.exists(RECORDS):
-        pd.DataFrame([new_row]).to_csv(RECORDS, index=False, encoding="utf-8-sig")
-        print("Created:", RECORDS)
-        return
+def build_cum_trend(rec):
 
-    # 既存読み込み
-    rec = pd.read_csv(RECORDS)
-    rec = normalize_records(rec)
+    en = {
+        "楽天QQQ":"Rakuten QQQ",
+        "楽天SP500":"Rakuten S&P 500",
+        "楽天VTI":"Rakuten VTI",
+        "楽天レバナス":"Rakuten LN"
+    }
 
-    # 追加
-    rec = pd.concat([rec, pd.DataFrame([new_row])], ignore_index=True)
+    cols = ["global_market_date"] + [f"{jp}_cum_pct" for jp in en.keys()]
+    df = rec[cols].sort_values("global_market_date").drop_duplicates("global_market_date")
 
-    # 同じ market_date で古い fetch_time の行を削除（最新だけ残す）
-    for s in SHORTS:
-        mcol = f"{s}_market_date"
-        if mcol not in rec.columns:
-            continue
+    out = pd.DataFrame()
+    out["date"] = df["global_market_date"]
 
-        same = rec[rec[mcol] == new_row[mcol]]
-        if len(same) > 1:
-            newest_idx = same["fetch_time"].idxmax()
-            drop_idx = [i for i in same.index if i != newest_idx]
-            rec = rec.drop(drop_idx)
+    for jp in en.keys():
+        out[en[jp]] = df[f"{jp}_cum_pct"]
 
-    # 日付順に並べる
-    rec = rec.sort_values(["global_market_date", "fetch_time"]).reset_index(drop=True)
+    # 最新 20 点だけ
+    out = out.tail(20)
 
-    # 前日比を計算
-    rec = calc_prev_diff(rec)
-
-    # 保存
-    rec.to_csv(RECORDS, index=False, encoding="utf-8-sig")
-    print("Updated:", RECORDS)
+    save_csv(out, "cum_chart_data.csv")
+    return out
 
 
-# ==========================================================
+# ============================================================
+# DASHBOARD HTML
+# Chart.js に daily / weekly / cum を描画
+# ============================================================
+
+def build_dashboard_html(today, daily, weekly, cum):
+
+    import json
+
+    products = ["Rakuten QQQ","Rakuten S&P 500","Rakuten VTI","Rakuten LN"]
+
+    color_map = {
+        "Rakuten QQQ": "#007aff",
+        "Rakuten S&P 500": "#ff9500",
+        "Rakuten VTI": "#34c759",
+        "Rakuten LN": "#af52de"
+    }
+
+    line_color = {
+        "Rakuten QQQ": "#0040ff",
+        "Rakuten S&P 500": "#cc5500",
+        "Rakuten VTI": "#228b22",
+        "Rakuten LN": "#7d3ccf"
+    }
+
+    html = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Finance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { background:#f5f5f7; font-family:-apple-system; padding:24px; }
+h2 { margin-top:40px; }
+.table-container { background:#fff; padding:16px; border-radius:16px; }
+table { width:100%; border-collapse:collapse; }
+th,td { padding:6px 8px; border-bottom:1px solid #e5e5e7; font-size:13px; }
+.chart-container { width:100%; height:420px; }
+</style>
+</head>
+<body>
+"""
+
+    # ============================================================
+    # Today Summary
+    # ============================================================
+
+    html += """
+<h2>Today Summary</h2>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>Product</th><th>Date</th><th>NAV</th>
+<th>Prod Δ (¥)</th><th>Prod Δ (%)</th>
+<th>Value (¥)</th><th>Value Δ (¥)</th><th>Value Δ (%)</th>
+</tr>
+</thead><tbody>
+"""
+
+    for _, r in today.iterrows():
+        html += f"""
+<tr>
+<td>{r["product"]}</td>
+<td>{r["date"]}</td>
+<td>{fmt_yen(r["nav"])}</td>
+<td>{fmt_yen(r["prod_diff"])}</td>
+<td>{fmt_pct(r["prod_pct"])}</td>
+<td>{fmt_yen(r["value"])}</td>
+<td>{fmt_yen(r["value_diff"])}</td>
+<td>{fmt_pct(r["value_pct"])}</td>
+</tr>
+"""
+
+    html += "</tbody></table></div>"
+
+    # ============================================================
+    # Cumulative Performance（20点）
+    # ============================================================
+
+    html += """
+<h2>Cumulative Performance (Latest 20)</h2>
+<canvas id="cumChart" class="chart-container"></canvas>
+<script>
+"""
+
+    labels = cum["date"].astype(str).tolist()
+    datasets = []
+    for prod in products:
+        datasets.append({
+            "type": "line",
+            "label": prod,
+            "data": cum[prod].round(2).tolist(),
+            "borderColor": line_color[prod],
+            "borderWidth": 2,
+            "tension": 0.2,
+            "fill": False
+        })
+
+    import json
+    html += f"""
+new Chart(document.getElementById("cumChart"), {{
+    data: {{
+        labels: {json.dumps(labels)},
+        datasets: {json.dumps(datasets)}
+    }},
+    options: {{
+        scales: {{
+            y: {{
+                title: {{ display: true, text: "Cumulative %" }}
+            }}
+        }}
+    }}
+}});
+</script>
+"""
+
+    # ============================================================
+    # DAILY Performance（棒 + 累積線）
+    # ============================================================
+
+    html += """
+<h2>Daily Performance</h2>
+<canvas id="dailyChart" class="chart-container"></canvas>
+<script>
+"""
+
+    labels_d = daily["date"].astype(str).tolist()
+    ds = []
+
+    for prod in products:
+        ds.append({
+            "type": "bar",
+            "label": prod,
+            "data": daily[prod].round(2).tolist(),
+            "backgroundColor": color_map[prod]
+        })
+        ds.append({
+            "type": "line",
+            "label": prod + " (Cum)",
+            "data": daily[f"{prod}_cum"].round(2).tolist(),
+            "borderColor": line_color[prod],
+            "borderWidth": 2,
+            "tension": 0.2,
+            "fill": False
+        })
+
+    html += f"""
+new Chart(document.getElementById("dailyChart"), {{
+    data: {{
+        labels: {json.dumps(labels_d)},
+        datasets: {json.dumps(ds)}
+    }},
+    options: {{
+        scales: {{
+            y: {{
+                min: -5,
+                max: 5,
+                ticks: {{ stepSize: 1 }},
+                title: {{ display: true, text: "Daily % / Cum %" }}
+            }}
+        }}
+    }}
+}});
+</script>
+"""
+
+    # ============================================================
+    # WEEKLY Performance（棒 + 累積線）
+    # ============================================================
+
+    html += """
+<h2>Weekly Performance</h2>
+<canvas id="weeklyChart" class="chart-container"></canvas>
+<script>
+"""
+
+    labels_w = weekly["week"].tolist()
+    ds_w = []
+
+    for prod in products:
+        ds_w.append({
+            "type": "bar",
+            "label": prod,
+            "data": weekly[prod].round(2).tolist(),
+            "backgroundColor": color_map[prod]
+        })
+        ds_w.append({
+            "type": "line",
+            "label": prod + " (Cum)",
+            "data": weekly[f"{prod}_cum"].round(2).tolist(),
+            "borderColor": line_color[prod],
+            "borderWidth": 2,
+            "tension": 0.2,
+            "fill": False
+        })
+
+    html += f"""
+new Chart(document.getElementById("weeklyChart"), {{
+    data: {{
+        labels: {json.dumps(labels_w)},
+        datasets: {json.dumps(ds_w)}
+    }},
+    options: {{
+        scales: {{
+            y: {{
+                min: -5,
+                max: 5,
+                ticks: {{ stepSize: 1 }},
+                title: {{ display: true, text: "Weekly % / Cum %" }}
+            }}
+        }}
+    }}
+}});
+</script>
+"""
+
+    html += "</body></html>"
+
+    (BASE / "dashboard.html").write_text(html, encoding="utf-8")
+
+
+# ============================================================
 # MAIN
-# ==========================================================
+# ============================================================
+
+def main():
+    rec, holdings = load_source()
+
+    today = build_today_summary(rec, holdings)
+    daily = build_daily_trend(rec)
+    weekly = build_weekly_trend(rec)
+    cum = build_cum_trend(rec)
+
+    build_dashboard_html(today, daily, weekly, cum)
+
+    print("=== BUILD COMPLETED ===")
+
 if __name__ == "__main__":
-    print("\n=== FETCH RAW ===")
-    raw = fetch_raw()
-
-    print("\n=== UPDATE RECORDS ===")
-    update_records(raw)
-
-    print("\n=== COMPLETED UPDATE ===")
-
-    # ============================================
-    # RUN BUILD AFTER UPDATE
-    # ============================================
-    import subprocess
-    import sys
-    import os
-
-    build_script = os.path.join(os.path.dirname(__file__), "build.py")
-
-    print("\n=== RUN BUILD ===")
-    try:
-        subprocess.run([sys.executable, build_script], check=True)
-        print("Build completed successfully.")
-    except Exception as e:
-        print(f"Build failed: {e}")
+    main()

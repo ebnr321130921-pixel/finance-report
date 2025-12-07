@@ -8,305 +8,250 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 
-# ============================================
+# ------------------------------------------------------------
 # Utility
-# ============================================
+# ------------------------------------------------------------
+PRODUCT_MAP = {
+    "楽天QQQ": "Rakuten QQQ",
+    "楽天SP500": "Rakuten S&P 500",
+    "楽天VTI": "Rakuten VTI",
+    "楽天レバナス": "Rakuten LN"
+}
 
-def load_csv(name):
-    return pd.read_csv(BASE / name)
-
-def save_csv(df, name):
-    df.to_csv(BASE / name, index=False)
-
-# 日本語 → 英語の正規化
-def normalize_product(jp):
-    mapping = {
-        "楽天QQQ": "Rakuten QQQ",
-        "楽天SP500": "Rakuten S&P 500",
-        "楽天VTI": "Rakuten VTI",
-        "楽天レバナス": "Rakuten LN"
-    }
-    return mapping.get(jp, jp)
+COLOR_MAP = {
+    "Rakuten QQQ": "#007aff",
+    "Rakuten S&P 500": "#ff9500",
+    "Rakuten VTI": "#34c759",
+    "Rakuten LN": "#af52de"
+}
 
 def fmt_yen(x):
-    if pd.isna(x):
-        return ""
+    if pd.isna(x): return ""
     return f"{int(round(x)):,}"
 
 def fmt_pct(x):
-    if pd.isna(x):
-        return ""
+    if pd.isna(x): return ""
     return f"{x:.2f}%"
 
-# ============================================
-# 0. Load source
-# daily_records.csv を縦持ちへ変換
-# ============================================
 
+# ------------------------------------------------------------
+# Load Source
+# ------------------------------------------------------------
 def load_source():
-    raw = load_csv("daily_records.csv")
-
-    # 構造チェック
-    required_cols = ["fetch_time", "global_market_date"]
-    for c in required_cols:
-        if c not in raw.columns:
-            raise ValueError(f"daily_records.csv に {c} が存在しません")
-
-    # 製品群の抽出
-    jp_products = ["楽天QQQ", "楽天SP500", "楽天VTI", "楽天レバナス"]
-
+    raw = pd.read_csv(BASE/"daily_records.csv")
     rows = []
-    for _, r in raw.iterrows():
-        for jp in jp_products:
-            prod = normalize_product(jp)
-            nav = r[jp]
-            market_date = r[f"{jp}_market_date"]
-            diff = r[f"{jp}_prev_diff"]
-            pct = r[f"{jp}_prev_pct"]
 
-            rows.append({
-                "product": prod,
-                "market_date": market_date,
-                "nav": nav,
-                "diff": diff,
-                "diff_pct": pct
-            })
+    for jp, en in PRODUCT_MAP.items():
+        rows.append(pd.DataFrame({
+            "product": en,
+            "market_date": pd.to_datetime(raw[f"{jp}_market_date"]),
+            "nav": raw[jp],
+            "pct": raw[f"{jp}_prev_pct"],
+            "cum_pct": raw.get(f"{jp}_cum_pct", np.nan)
+        }))
 
-    df = pd.DataFrame(rows)
+    records = pd.concat(rows).reset_index(drop=True)
 
-    # 日付変換
-    df["market_date"] = pd.to_datetime(df["market_date"])
+    holdings = pd.read_csv(BASE/"holdings.csv")
+    holdings["product"] = holdings["product"].map(PRODUCT_MAP)
 
-    holdings = load_csv("holdings.csv")
-    holdings["product"] = holdings["product"].apply(normalize_product)
+    return records, holdings
 
-    return df, holdings
 
-# ============================================
-# 1. Today Summary
-# ============================================
-
+# ------------------------------------------------------------
+# Today Summary
+# ------------------------------------------------------------
 def build_today_summary(records, holdings):
+    latest = records["market_date"].max()
+    today = records[records["market_date"] == latest]
 
-    latest_date = records["market_date"].max()
-    today_rows = records[records["market_date"] == latest_date]
+    df = today.merge(holdings, on="product", how="left")
+    df = df.assign(
+        prod_diff = df["nav"] * df["pct"] / 100,
+        value = df["units"] * df["nav"] / 10000,
+        value_diff = df["units"] * df["nav"] * df["pct"] / 100 / 10000,
+        value_pct = df["pct"],
+        date = latest.strftime("%Y-%m-%d")
+    )
 
-    all_products = sorted(records["product"].unique())
-    out = []
+    out = df[[
+        "product","date","nav","prod_diff","pct",
+        "value","value_diff","value_pct"
+    ]].rename(columns={"pct":"prod_pct"})
 
-    for prod in all_products:
-        r = today_rows[today_rows["product"] == prod]
-        h = holdings[holdings["product"] == prod]
+    out.to_csv(BASE/"today_summary.csv", index=False, encoding="utf-8-sig")
+    return out
 
-        nav = r.iloc[0]["nav"] if len(r) else np.nan
-        diff = r.iloc[0]["diff"] if len(r) else np.nan
-        pct = r.iloc[0]["diff_pct"] if len(r) else np.nan
 
-        units = h.iloc[0]["units"] if len(h) else 0
-        value = units * nav / 10000 if not pd.isna(nav) else np.nan
-        value_diff = units * diff / 10000 if not pd.isna(diff) else np.nan
-        value_pct = pct
-
-        out.append({
-            "product": prod,
-            "date": latest_date.strftime("%Y-%m-%d"),
-            "nav": nav,
-            "prod_diff": diff,
-            "prod_pct": pct,
-            "value": value,
-            "value_diff": value_diff,
-            "value_pct": value_pct
-        })
-
-    df_out = pd.DataFrame(out)
-    save_csv(df_out, "today_summary.csv")
-    return df_out
-
-# ============================================
-# 2. Daily Trend
-# ============================================
-
+# ------------------------------------------------------------
+# Daily Trend（過去10日〜未来2日／土日削除／曜日付）
+# ------------------------------------------------------------
 def build_daily_trend(records):
 
     latest = records["market_date"].max()
-    start = latest - pd.Timedelta(days=30)
-    end = latest + pd.Timedelta(days=10)
+    start = latest - dt.timedelta(days=10)
+    end   = latest + dt.timedelta(days=2)
 
-    full_dates = pd.date_range(start, end)
-    products = sorted(records["product"].unique())
+    df = records[(records["market_date"] >= start) & (records["market_date"] <= end)]
+    p = df.pivot_table(index="market_date", columns="product", values="pct")
 
-    p = records.pivot_table(
-        index="market_date",
-        columns="product",
-        values="nav"
-    )
+    p = p.dropna(how="all").reset_index()
+    p["date"] = p["market_date"].dt.strftime("%Y-%m-%d (%a)")
+    p = p.drop(columns=["market_date"])
 
-    p2 = p.reindex(full_dates).fillna(method="ffill")
+    p.to_csv(BASE/"daily_chart_data.csv", index=False, encoding="utf-8-sig")
+    return p
 
-    base = p2.iloc[0]
-    cum = (p2 / base - 1) * 100
-    daily = p2.pct_change() * 100
 
-    out = pd.DataFrame({"date": full_dates})
-    for prod in products:
-        out[f"{prod}_cum"] = cum[prod].values
-        out[f"{prod}_daily"] = daily[prod].values
-
-    save_csv(out, "daily_chart_data.csv")
-    return out
-
-# ============================================
-# 3. Weekly Trend（Monthly Performance）
-# ============================================
-
+# ------------------------------------------------------------
+# Weekly Trend（過去4週〜未来2週）
+# ------------------------------------------------------------
 def build_weekly_trend(records):
 
     latest = records["market_date"].max()
-    start = latest - pd.Timedelta(days=365)
-    end = latest + pd.Timedelta(days=150)
+    this_week = latest.to_period("W-MON")
 
-    full_dates = pd.date_range(start, end)
-    products = sorted(records["product"].unique())
+    target_weeks = [
+        this_week - 4, this_week - 3, this_week - 2, this_week - 1,
+        this_week, this_week + 1, this_week + 2
+    ]
 
-    p = records.pivot_table(
+    df = records.copy()
+    df["week"] = df["market_date"].dt.to_period("W-MON")
+
+    weekly = df.groupby(["week","product"]).apply(
+        lambda x: (x["nav"].iloc[-1] / x["nav"].iloc[0] - 1) * 100
+    ).unstack("product").reset_index()
+
+    weekly = weekly[weekly["week"].isin(target_weeks)]
+    weekly["week"] = weekly["week"].dt.start_time.dt.strftime("%Y-%m-%d")
+    weekly["week"] = weekly["week"] + " W"
+
+    weekly.to_csv(BASE/"weekly_chart_data.csv", index=False, encoding="utf-8-sig")
+    weekly.to_csv(BASE/"monthly_chart_data.csv", index=False, encoding="utf-8-sig")
+
+    return weekly
+
+
+# ------------------------------------------------------------
+# Cumulative Trend（最大20件／最新+1日／デイリーと同期間）
+# ------------------------------------------------------------
+def build_cumulative_trend(records):
+
+    latest = records["market_date"].max()
+    start = latest - dt.timedelta(days=10)
+    end   = latest + dt.timedelta(days=1)
+
+    df = records[(records["market_date"] >= start) & (records["market_date"] <= end)]
+
+    p = df.pivot_table(
         index="market_date",
         columns="product",
-        values="nav"
-    )
+        values="cum_pct"
+    ).reset_index()
 
-    p2 = p.reindex(full_dates).fillna(method="ffill")
+    p = p.tail(20)
+    p = p.rename(columns={"market_date": "date"})
 
-    # 週ラベル（月曜ベース）
-    week_labels = []
-    for d in full_dates:
-        monday = d - pd.Timedelta(days=d.weekday())
-        week_labels.append(monday.strftime("%Y/%m/%dW"))
+    p.to_csv(BASE/"cum_chart_data.csv", index=False, encoding="utf-8-sig")
+    return p
 
-    p2["week"] = week_labels
 
-    week_df = p2.groupby("week").last()
+# ------------------------------------------------------------
+# HTML Dashboard
+# ------------------------------------------------------------
+def build_dashboard_html(today, daily, weekly, cumulative):
 
-    base = week_df.iloc[0][products]
-    cum = (week_df[products] / base - 1) * 100
-    weekly = week_df[products].pct_change() * 100
+    import json
 
-    out = pd.DataFrame({"week": week_df.index})
-    for prod in products:
-        out[f"{prod}_cum"] = cum[prod].values
-        out[f"{prod}_weekly"] = weekly[prod].values
-
-    save_csv(out, "monthly_chart_data.csv")
-    return out
-
-# ============================================
-# 4. HTML Dashboard
-# ============================================
-
-def build_dashboard_html(today, daily, weekly):
-
-    products = sorted(today["product"].unique())
-
-    color_map = {
-        "Rakuten QQQ": "#007aff",
-        "Rakuten S&P 500": "#ff9500",
-        "Rakuten VTI": "#34c759",
-        "Rakuten LN": "#af52de"
-    }
+    products = [c for c in daily.columns if c not in ["date"]]
 
     html = """
-<!DOCTYPE html>
-<html>
-<head>
+<!DOCTYPE html><html><head>
 <meta charset="UTF-8">
 <title>Finance Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
-body { font-family:-apple-system; padding:24px; background:#f5f5f7; }
-h2 { font-weight:600; margin-top:40px; }
-.table-container { background:#fff; padding:20px; border-radius:16px; }
-table { width:100%; border-collapse:collapse; }
-th,td { padding:6px 8px; border-bottom:1px solid #e5e5e7; font-size:13px; }
+body { background:#f5f5f7; font-family:-apple-system; padding:24px; }
+h2 { margin-top:40px; }
+.table-container { background:#fff; padding:16px; border-radius:16px; }
+table { width:100%; border-collapse:collapse; table-layout:fixed; }
+th,td { padding:6px 8px; font-size:13px; border-bottom:1px solid #e5e5e7; }
+th { text-align:center; }
+td { text-align:right; }
+td:first-child, th:first-child { text-align:center; }
 .chart-container { width:100%; height:420px; }
 </style>
-</head>
-<body>
+</head><body>
 """
 
-    # === TODAY SUMMARY ======================================
+    # ----------------- TODAY SUMMARY -----------------
     html += """
 <h2>Today Summary</h2>
 <div class="table-container">
 <table>
-<thead>
-<tr>
+<colgroup>
+<col style='width:14%;'>
+<col style='width:12%;'>
+<col style='width:12%;'>
+<col style='width:12%;'>
+<col style='width:12%;'>
+<col style='width:12%;'>
+<col style='width:12%;'>
+<col style='width:12%;'>
+</colgroup>
+<thead><tr>
 <th>Product</th><th>Date</th><th>NAV</th>
 <th>Prod Δ (¥)</th><th>Prod Δ (%)</th>
 <th>Value (¥)</th><th>Value Δ (¥)</th><th>Value Δ (%)</th>
-</tr>
-</thead>
-<tbody>
+</tr></thead><tbody>
 """
 
     for _, r in today.iterrows():
         html += f"""
 <tr>
-<td>{r["product"]}</td>
-<td>{r["date"]}</td>
-<td>{fmt_yen(r["nav"])}</td>
-<td>{fmt_yen(r["prod_diff"])}</td>
-<td>{fmt_pct(r["prod_pct"])}</td>
-<td>{fmt_yen(r["value"])}</td>
-<td>{fmt_yen(r["value_diff"])}</td>
-<td>{fmt_pct(r["value_pct"])}</td>
+<td>{r['product']}</td>
+<td>{r['date']}</td>
+<td>{fmt_yen(r['nav'])}</td>
+<td>{fmt_yen(r['prod_diff'])}</td>
+<td>{fmt_pct(r['prod_pct'])}</td>
+<td>{fmt_yen(r['value'])}</td>
+<td>{fmt_yen(r['value_diff'])}</td>
+<td>{fmt_pct(r['value_pct'])}</td>
 </tr>
 """
 
     html += "</tbody></table></div>"
 
-    # === DAILY CHART ===========================================
-    labels = daily["date"].dt.strftime("%Y-%m-%d").tolist()
+    # ---------- helper for datasets ----------
+    def make_datasets(df, type_="bar"):
+        ds = []
+        for prod in products:
+            ds.append({
+                "type": type_,
+                "label": prod,
+                "data": df[prod].round(2).fillna(0).tolist(),
+                "backgroundColor": COLOR_MAP[prod],
+                "borderColor": COLOR_MAP[prod],
+                "borderWidth": 2,
+            })
+        return ds
 
-    ds = []
-    for prod in products:
-        c = color_map[prod]
-        cum = daily[f"{prod}_cum"].round(2).fillna(0).tolist()
-        day = daily[f"{prod}_daily"].round(2).fillna(0).tolist()
 
-        ds.append({
-            "label": f"{prod} (Cumulative)",
-            "type": "line",
-            "data": cum,
-            "borderColor": c,
-            "pointRadius": 2,
-            "tension": 0.3,
-            "yAxisID": "y"
-        })
-        ds.append({
-            "label": f"{prod} (Daily)",
-            "type": "bar",
-            "data": day,
-            "backgroundColor": c + "33",
-            "yAxisID": "y"
-        })
-
-    import json
+    # ----------------- DAILY CHART -----------------
+    daily_labels = daily["date"].tolist()
+    ds_daily = make_datasets(daily, "bar")
 
     html += f"""
 <h2>Daily Performance</h2>
 <canvas id="dailyChart" class="chart-container"></canvas>
-
 <script>
 new Chart(document.getElementById("dailyChart"), {{
-    data: {{
-        labels: {json.dumps(labels)},
-        datasets: {json.dumps(ds)}
-    }},
+    data: {{ labels: {json.dumps(daily_labels)}, datasets: {json.dumps(ds_daily)} }},
     options: {{
         scales: {{
             y: {{
-                min: -5, max: 5, ticks: {{ stepSize: 1 }},
-                title: {{ display: true, text: "Performance (%)" }}
+                title: {{ display: true, text: 'Daily %' }}
             }}
         }}
     }}
@@ -314,47 +259,77 @@ new Chart(document.getElementById("dailyChart"), {{
 </script>
 """
 
-    # === WEEKLY CHART ==========================================
-    labels_w = weekly["week"].tolist()
-
-    ds2 = []
-    for prod in products:
-        c = color_map[prod]
-        cum = weekly[f"{prod}_cum"].round(2).fillna(0).tolist()
-        wk = weekly[f"{prod}_weekly"].round(2).fillna(0).tolist()
-
-        ds2.append({
-            "label": f"{prod} (Cumulative)",
-            "type": "line",
-            "data": cum,
-            "borderColor": c,
-            "pointRadius": 2,
-            "tension": 0.3,
-            "yAxisID": "y"
-        })
-        ds2.append({
-            "label": f"{prod} (Weekly)",
-            "type": "bar",
-            "data": wk,
-            "backgroundColor": c + "33",
-            "yAxisID": "y"
-        })
+    # ----------------- WEEKLY CHART -----------------
+    weekly_labels = weekly["week"].tolist()
+    ds_weekly = make_datasets(weekly, "bar")
 
     html += f"""
 <h2>Weekly Performance</h2>
 <canvas id="weeklyChart" class="chart-container"></canvas>
-
 <script>
 new Chart(document.getElementById("weeklyChart"), {{
+    data: {{ labels: {json.dumps(weekly_labels)}, datasets: {json.dumps(ds_weekly)} }},
+    options: {{
+        scales: {{
+            y: {{
+                title: {{ display: true, text: 'Weekly %' }}
+            }}
+        }}
+    }}
+}});
+</script>
+"""
+
+    # ----------------- CUMULATIVE CHART -----------------
+    cum_labels = cumulative["date"].astype(str).tolist()
+    cum_ds = []
+
+    for prod in products:
+        values = cumulative[prod].round(2).fillna(0).tolist()
+        point_sizes = [3]*(len(values)-1) + [7]  # 最新のみ大きい点
+
+        cum_ds.append({
+            "type": "line",
+            "label": prod,
+            "data": values,
+            "borderColor": COLOR_MAP[prod],
+            "backgroundColor": COLOR_MAP[prod],
+            "borderWidth": 2,
+            "tension": 0,        # ←完全に折れ線
+            "pointRadius": point_sizes,
+            "fill": False
+        })
+
+    html += f"""
+<h2>Cumulative Performance</h2>
+<canvas id="cumChart" class="chart-container"></canvas>
+<script>
+new Chart(document.getElementById("cumChart"), {{
+    plugins:[{{
+        id: 'valueLabel',
+        afterDraw(chart) {{
+            const ctx = chart.ctx;
+            chart.data.datasets.forEach((ds, i) => {{
+                const meta = chart.getDatasetMeta(i);
+                const last = meta.data[meta.data.length - 1];
+                ctx.fillStyle = ds.borderColor;
+                ctx.font = "12px -apple-system";
+                ctx.fillText(
+                    ds.data[ds.data.length-1] + "%",
+                    last.x + 6,
+                    last.y - 6
+                );
+            }});
+        }}
+    }}],
     data: {{
-        labels: {json.dumps(labels_w)},
-        datasets: {json.dumps(ds2)}
+        labels: {json.dumps(cum_labels)},
+        datasets: {json.dumps(cum_ds)}
     }},
     options: {{
         scales: {{
             y: {{
-                min: -10, max: 10, ticks: {{ stepSize: 2 }},
-                title: {{ display: true, text: "Performance (%)" }}
+                title: {{ display: true, text: 'Cumulative %' }}
             }}
         }}
     }}
@@ -363,30 +338,23 @@ new Chart(document.getElementById("weeklyChart"), {{
 """
 
     html += "</body></html>"
+    (BASE/"dashboard.html").write_text(html, encoding="utf-8")
 
-    (BASE / "dashboard.html").write_text(html, encoding="utf-8")
 
-# ============================================
+# ------------------------------------------------------------
 # MAIN
-# ============================================
-
+# ------------------------------------------------------------
 def main():
-    print("=== LOADING ===")
-    rec, hold = load_source()
+    records, holdings = load_source()
 
-    print("=== TODAY ===")
-    today = build_today_summary(rec, hold)
+    today = build_today_summary(records, holdings)
+    daily = build_daily_trend(records)
+    weekly = build_weekly_trend(records)
+    cumulative = build_cumulative_trend(records)
 
-    print("=== DAILY ===")
-    daily = build_daily_trend(rec)
-
-    print("=== WEEKLY ===")
-    weekly = build_weekly_trend(rec)
-
-    print("=== HTML ===")
-    build_dashboard_html(today, daily, weekly)
-
+    build_dashboard_html(today, daily, weekly, cumulative)
     print("=== DONE ===")
+
 
 if __name__ == "__main__":
     main()
