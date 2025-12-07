@@ -1,5 +1,7 @@
 
-<!DOCTYPE html><html><head>
+<!DOCTYPE html>
+<html>
+<head>
 <meta charset="UTF-8">
 <title>Finance Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -7,33 +9,23 @@
 body { background:#f5f5f7; font-family:-apple-system; padding:24px; }
 h2 { margin-top:40px; }
 .table-container { background:#fff; padding:16px; border-radius:16px; }
-table { width:100%; border-collapse:collapse; table-layout:fixed; }
-th,td { padding:6px 8px; font-size:13px; border-bottom:1px solid #e5e5e7; }
-th { text-align:center; }
-td { text-align:right; }
-td:first-child, th:first-child { text-align:center; }
+table { width:100%; border-collapse:collapse; }
+th,td { padding:6px 8px; border-bottom:1px solid #e5e5e7; font-size:13px; }
 .chart-container { width:100%; height:420px; }
 </style>
-</head><body>
+</head>
+<body>
 
 <h2>Today Summary</h2>
 <div class="table-container">
 <table>
-<colgroup>
-<col style='width:14%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-</colgroup>
-<thead><tr>
+<thead>
+<tr>
 <th>Product</th><th>Date</th><th>NAV</th>
 <th>Prod Δ (¥)</th><th>Prod Δ (%)</th>
 <th>Value (¥)</th><th>Value Δ (¥)</th><th>Value Δ (%)</th>
-</tr></thead><tbody>
+</tr>
+</thead><tbody>
 
 <tr>
 <td>Rakuten QQQ</td>
@@ -41,8 +33,8 @@ td:first-child, th:first-child { text-align:center; }
 <td>15,902</td>
 <td>-33</td>
 <td>-0.21%</td>
-<td>39,432,814</td>
-<td>-81,662</td>
+<td>0</td>
+<td>0</td>
 <td>-0.21%</td>
 </tr>
 
@@ -53,7 +45,7 @@ td:first-child, th:first-child { text-align:center; }
 <td>0</td>
 <td>0.00%</td>
 <td>0</td>
-<td>0</td>
+<td></td>
 <td>0.00%</td>
 </tr>
 
@@ -74,20 +66,46 @@ td:first-child, th:first-child { text-align:center; }
 <td>13,319</td>
 <td>-37</td>
 <td>-0.28%</td>
-<td>630,844</td>
-<td>-1,748</td>
+<td>0</td>
+<td>0</td>
 <td>-0.28%</td>
 </tr>
 </tbody></table></div>
-<h2>Daily Performance</h2>
-<canvas id="dailyChart" class="chart-container"></canvas>
+<h2>Cumulative Performance (Latest 20)</h2>
+<canvas id="cumChart" class="chart-container"></canvas>
 <script>
-new Chart(document.getElementById("dailyChart"), {
-    data: { labels: ["2025-11-25 (Tue)", "2025-11-26 (Wed)", "2025-11-27 (Thu)", "2025-11-28 (Fri)", "2025-12-01 (Mon)", "2025-12-02 (Tue)", "2025-12-03 (Wed)", "2025-12-04 (Thu)", "2025-12-05 (Fri)"], datasets: [{"type": "bar", "label": "Rakuten LN", "data": [6.74, 1.08, 1.73, -0.01, 1.4, -0.72, 1.69, 0.4, -0.28], "backgroundColor": "#af52de", "borderColor": "#af52de", "borderWidth": 2}, {"type": "bar", "label": "Rakuten QQQ", "data": [3.0, 0.27, 0.57, 0.46, 0.29, -0.47, 0.93, -0.14, -0.21], "backgroundColor": "#007aff", "borderColor": "#007aff", "borderWidth": 2}, {"type": "bar", "label": "Rakuten S&P 500", "data": [2.14, 0.6, 0.39, 0.46, 0.05, -0.63, 0.34, -0.05, 0.0], "backgroundColor": "#ff9500", "borderColor": "#ff9500", "borderWidth": 2}, {"type": "bar", "label": "Rakuten VTI", "data": [2.26, 0.75, 0.54, 0.31, 0.07, -0.6, 0.21, 0.1, 0.04], "backgroundColor": "#34c759", "borderColor": "#34c759", "borderWidth": 2}] },
+
+new Chart(document.getElementById("cumChart"), {
+    data: {
+        labels: ["2025-11-19", "2025-11-20", "2025-11-21", "2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05"],
+        datasets: [{"type": "line", "label": "Rakuten QQQ", "data": [0.0, 1.7, -0.58, 2.4, 2.67, 3.26, 3.74, 4.04, 3.56, 4.52, 4.37, 4.15], "borderColor": "#0040ff", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "line", "label": "Rakuten S&P 500", "data": [0.0, 1.51, 0.07, 2.21, 2.82, 3.22, 3.7, 3.75, 3.1, 3.45, 3.4, 3.4], "borderColor": "#cc5500", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "line", "label": "Rakuten VTI", "data": [0.0, 1.46, -0.03, 2.23, 3.0, 3.55, 3.87, 3.94, 3.32, 3.54, 3.64, 3.68], "borderColor": "#228b22", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "line", "label": "Rakuten LN", "data": [0.0, 1.03, -3.8, 2.68, 3.79, 5.59, 5.58, 7.06, 6.29, 8.08, 8.51, 8.21], "borderColor": "#7d3ccf", "borderWidth": 2, "tension": 0.2, "fill": false}]
+    },
     options: {
         scales: {
             y: {
-                title: { display: true, text: 'Daily %' }
+                title: { display: true, text: "Cumulative %" }
+            }
+        }
+    }
+});
+</script>
+
+<h2>Daily Performance</h2>
+<canvas id="dailyChart" class="chart-container"></canvas>
+<script>
+
+new Chart(document.getElementById("dailyChart"), {
+    data: {
+        labels: ["2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-11-29", "2025-11-30", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-06", "2025-12-07", "2025-12-08", "2025-12-09", "2025-12-10"],
+        datasets: [{"type": "bar", "label": "Rakuten QQQ", "data": [3.0, 0.27, 0.57, 0.46, NaN, NaN, 0.29, -0.47, 0.93, -0.14, -0.21, NaN, NaN, NaN, NaN, NaN], "backgroundColor": "#007aff"}, {"type": "line", "label": "Rakuten QQQ (Cum)", "data": [2.4, 2.67, 3.26, 3.74, NaN, NaN, 4.04, 3.56, 4.52, 4.37, 4.15, NaN, NaN, NaN, NaN, NaN], "borderColor": "#0040ff", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "bar", "label": "Rakuten S&P 500", "data": [2.14, 0.6, 0.39, 0.46, NaN, NaN, 0.05, -0.63, 0.34, -0.05, 0.0, NaN, NaN, NaN, NaN, NaN], "backgroundColor": "#ff9500"}, {"type": "line", "label": "Rakuten S&P 500 (Cum)", "data": [2.21, 2.82, 3.22, 3.7, NaN, NaN, 3.75, 3.1, 3.45, 3.4, 3.4, NaN, NaN, NaN, NaN, NaN], "borderColor": "#cc5500", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "bar", "label": "Rakuten VTI", "data": [2.26, 0.75, 0.54, 0.31, NaN, NaN, 0.07, -0.6, 0.21, 0.1, 0.04, NaN, NaN, NaN, NaN, NaN], "backgroundColor": "#34c759"}, {"type": "line", "label": "Rakuten VTI (Cum)", "data": [2.23, 3.0, 3.55, 3.87, NaN, NaN, 3.94, 3.32, 3.54, 3.64, 3.68, NaN, NaN, NaN, NaN, NaN], "borderColor": "#228b22", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "bar", "label": "Rakuten LN", "data": [6.74, 1.08, 1.73, -0.01, NaN, NaN, 1.4, -0.72, 1.69, 0.4, -0.28, NaN, NaN, NaN, NaN, NaN], "backgroundColor": "#af52de"}, {"type": "line", "label": "Rakuten LN (Cum)", "data": [2.68, 3.79, 5.59, 5.58, NaN, NaN, 7.06, 6.29, 8.08, 8.51, 8.21, NaN, NaN, NaN, NaN, NaN], "borderColor": "#7d3ccf", "borderWidth": 2, "tension": 0.2, "fill": false}]
+    },
+    options: {
+        scales: {
+            y: {
+                min: -5,
+                max: 5,
+                ticks: { stepSize: 1 },
+                title: { display: true, text: "Daily % / Cum %" }
             }
         }
     }
@@ -97,47 +115,19 @@ new Chart(document.getElementById("dailyChart"), {
 <h2>Weekly Performance</h2>
 <canvas id="weeklyChart" class="chart-container"></canvas>
 <script>
-new Chart(document.getElementById("weeklyChart"), {
-    data: { labels: ["2025-11-18 W", "2025-11-25 W", "2025-12-02 W"], datasets: [{"type": "bar", "label": "Rakuten LN", "data": [-3.8, 4.26, 1.81], "backgroundColor": "#af52de", "borderColor": "#af52de", "borderWidth": 2}, {"type": "bar", "label": "Rakuten QQQ", "data": [-0.58, 1.61, 0.58], "backgroundColor": "#007aff", "borderColor": "#007aff", "borderWidth": 2}, {"type": "bar", "label": "Rakuten S&P 500", "data": [0.07, 1.51, 0.28], "backgroundColor": "#ff9500", "borderColor": "#ff9500", "borderWidth": 2}, {"type": "bar", "label": "Rakuten VTI", "data": [-0.03, 1.68, 0.35], "backgroundColor": "#34c759", "borderColor": "#34c759", "borderWidth": 2}] },
-    options: {
-        scales: {
-            y: {
-                title: { display: true, text: 'Weekly %' }
-            }
-        }
-    }
-});
-</script>
 
-<h2>Cumulative Performance</h2>
-<canvas id="cumChart" class="chart-container"></canvas>
-<script>
-new Chart(document.getElementById("cumChart"), {
-    plugins:[{
-        id: 'valueLabel',
-        afterDraw(chart) {
-            const ctx = chart.ctx;
-            chart.data.datasets.forEach((ds, i) => {
-                const meta = chart.getDatasetMeta(i);
-                const last = meta.data[meta.data.length - 1];
-                ctx.fillStyle = ds.borderColor;
-                ctx.font = "12px -apple-system";
-                ctx.fillText(
-                    ds.data[ds.data.length-1] + "%",
-                    last.x + 6,
-                    last.y - 6
-                );
-            });
-        }
-    }],
+new Chart(document.getElementById("weeklyChart"), {
     data: {
-        labels: ["2025-11-25", "2025-11-26", "2025-11-27", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05"],
-        datasets: [{"type": "line", "label": "Rakuten LN", "data": [2.68, 3.79, 5.59, 5.58, 7.06, 6.29, 8.08, 8.51, 8.21], "borderColor": "#af52de", "backgroundColor": "#af52de", "borderWidth": 2, "tension": 0, "pointRadius": [3, 3, 3, 3, 3, 3, 3, 3, 7], "fill": false}, {"type": "line", "label": "Rakuten QQQ", "data": [2.4, 2.67, 3.26, 3.74, 4.04, 3.56, 4.52, 4.37, 4.15], "borderColor": "#007aff", "backgroundColor": "#007aff", "borderWidth": 2, "tension": 0, "pointRadius": [3, 3, 3, 3, 3, 3, 3, 3, 7], "fill": false}, {"type": "line", "label": "Rakuten S&P 500", "data": [2.21, 2.82, 3.22, 3.7, 3.75, 3.1, 3.45, 3.4, 3.4], "borderColor": "#ff9500", "backgroundColor": "#ff9500", "borderWidth": 2, "tension": 0, "pointRadius": [3, 3, 3, 3, 3, 3, 3, 3, 7], "fill": false}, {"type": "line", "label": "Rakuten VTI", "data": [2.23, 3.0, 3.55, 3.87, 3.94, 3.32, 3.54, 3.64, 3.68], "borderColor": "#34c759", "backgroundColor": "#34c759", "borderWidth": 2, "tension": 0, "pointRadius": [3, 3, 3, 3, 3, 3, 3, 3, 7], "fill": false}]
+        labels: ["2025-11-18/2025-11-24", "2025-11-25/2025-12-01", "2025-12-02/2025-12-08"],
+        datasets: [{"type": "bar", "label": "Rakuten QQQ", "data": [-0.58, 1.61, 0.58], "backgroundColor": "#007aff"}, {"type": "line", "label": "Rakuten QQQ (Cum)", "data": [-0.58, 4.04, 4.15], "borderColor": "#0040ff", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "bar", "label": "Rakuten S&P 500", "data": [0.07, 1.51, 0.28], "backgroundColor": "#ff9500"}, {"type": "line", "label": "Rakuten S&P 500 (Cum)", "data": [0.07, 3.75, 3.4], "borderColor": "#cc5500", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "bar", "label": "Rakuten VTI", "data": [-0.03, 1.68, 0.35], "backgroundColor": "#34c759"}, {"type": "line", "label": "Rakuten VTI (Cum)", "data": [-0.03, 3.94, 3.68], "borderColor": "#228b22", "borderWidth": 2, "tension": 0.2, "fill": false}, {"type": "bar", "label": "Rakuten LN", "data": [-3.8, 4.26, 1.81], "backgroundColor": "#af52de"}, {"type": "line", "label": "Rakuten LN (Cum)", "data": [-3.8, 7.06, 8.21], "borderColor": "#7d3ccf", "borderWidth": 2, "tension": 0.2, "fill": false}]
     },
     options: {
         scales: {
             y: {
-                title: { display: true, text: 'Cumulative %' }
+                min: -5,
+                max: 5,
+                ticks: { stepSize: 1 },
+                title: { display: true, text: "Weekly % / Cum %" }
             }
         }
     }
