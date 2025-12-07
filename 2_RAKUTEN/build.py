@@ -39,11 +39,12 @@ def fmt_pct(x):
 # ------------------------------------------------------------
 def load_source():
     raw = pd.read_csv(BASE/"daily_records.csv")
+    prods = ["楽天QQQ", "楽天SP500", "楽天VTI", "楽天レバナス"]
     rows = []
 
-    for jp, en in PRODUCT_MAP.items():
+    for jp in prods:
         rows.append(pd.DataFrame({
-            "product": en,
+            "product": PRODUCT_MAP[jp],
             "market_date": pd.to_datetime(raw[f"{jp}_market_date"]),
             "nav": raw[jp],
             "pct": raw[f"{jp}_prev_pct"],
@@ -84,7 +85,7 @@ def build_today_summary(records, holdings):
 
 
 # ------------------------------------------------------------
-# Daily Trend（過去10日〜未来2日／土日削除／曜日付）
+# Daily Trend（過去10日〜翌2日・平日のみ・曜日つき）
 # ------------------------------------------------------------
 def build_daily_trend(records):
 
@@ -94,27 +95,24 @@ def build_daily_trend(records):
 
     df = records[(records["market_date"] >= start) & (records["market_date"] <= end)]
     p = df.pivot_table(index="market_date", columns="product", values="pct")
+    p2 = p.dropna(how="all").reset_index()
 
-    p = p.dropna(how="all").reset_index()
-    p["date"] = p["market_date"].dt.strftime("%Y-%m-%d (%a)")
-    p = p.drop(columns=["market_date"])
+    p2["date"] = p2["market_date"].dt.strftime("%Y-%m-%d (%a)")
+    p2 = p2.drop(columns=["market_date"])
 
-    p.to_csv(BASE/"daily_chart_data.csv", index=False, encoding="utf-8-sig")
-    return p
+    p2.to_csv(BASE/"daily_chart_data.csv", index=False, encoding="utf-8-sig")
+    return p2
 
 
 # ------------------------------------------------------------
-# Weekly Trend（過去4週〜未来2週）
+# Weekly Trend（過去4週〜翌2週）
 # ------------------------------------------------------------
 def build_weekly_trend(records):
-
     latest = records["market_date"].max()
     this_week = latest.to_period("W-MON")
 
-    target_weeks = [
-        this_week - 4, this_week - 3, this_week - 2, this_week - 1,
-        this_week, this_week + 1, this_week + 2
-    ]
+    target_weeks = [this_week - 4, this_week - 3, this_week - 2, this_week - 1,
+                    this_week, this_week + 1, this_week + 2]
 
     df = records.copy()
     df["week"] = df["market_date"].dt.to_period("W-MON")
@@ -124,8 +122,7 @@ def build_weekly_trend(records):
     ).unstack("product").reset_index()
 
     weekly = weekly[weekly["week"].isin(target_weeks)]
-    weekly["week"] = weekly["week"].dt.start_time.dt.strftime("%Y-%m-%d")
-    weekly["week"] = weekly["week"] + " W"
+    weekly["week"] = weekly["week"].astype(str)
 
     weekly.to_csv(BASE/"weekly_chart_data.csv", index=False, encoding="utf-8-sig")
     weekly.to_csv(BASE/"monthly_chart_data.csv", index=False, encoding="utf-8-sig")
@@ -134,15 +131,13 @@ def build_weekly_trend(records):
 
 
 # ------------------------------------------------------------
-# Cumulative Trend（最大20件／最新+1日／デイリーと同期間）
+# Cumulative Trend（20件・当日+1まで）
 # ------------------------------------------------------------
 def build_cumulative_trend(records):
-
     latest = records["market_date"].max()
-    start = latest - dt.timedelta(days=10)
-    end   = latest + dt.timedelta(days=1)
+    limit = latest + dt.timedelta(days=1)
 
-    df = records[(records["market_date"] >= start) & (records["market_date"] <= end)]
+    df = records[records["market_date"] <= limit].copy()
 
     p = df.pivot_table(
         index="market_date",
@@ -150,15 +145,13 @@ def build_cumulative_trend(records):
         values="cum_pct"
     ).reset_index()
 
-    p = p.tail(20)
-    p = p.rename(columns={"market_date": "date"})
-
+    p = p.tail(20).rename(columns={"market_date":"date"})
     p.to_csv(BASE/"cum_chart_data.csv", index=False, encoding="utf-8-sig")
     return p
 
 
 # ------------------------------------------------------------
-# HTML Dashboard
+# HTML（Apple Card UI）
 # ------------------------------------------------------------
 def build_dashboard_html(today, daily, weekly, cumulative):
 
@@ -166,45 +159,89 @@ def build_dashboard_html(today, daily, weekly, cumulative):
 
     products = [c for c in daily.columns if c not in ["date"]]
 
+    # Apple Style
     html = """
-<!DOCTYPE html><html><head>
+<!DOCTYPE html>
+<html>
+<head>
 <meta charset="UTF-8">
 <title>Finance Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
-body { background:#f5f5f7; font-family:-apple-system; padding:24px; }
-h2 { margin-top:40px; }
-.table-container { background:#fff; padding:16px; border-radius:16px; }
-table { width:100%; border-collapse:collapse; table-layout:fixed; }
-th,td { padding:6px 8px; font-size:13px; border-bottom:1px solid #e5e5e7; }
-th { text-align:center; }
-td { text-align:right; }
-td:first-child, th:first-child { text-align:center; }
-.chart-container { width:100%; height:420px; }
+
+body {
+    background:#f2f2f7;
+    font-family:-apple-system, BlinkMacSystemFont, Helvetica, Arial;
+    padding:22px;
+    color:#111;
+}
+
+.card {
+    background:#ffffff;
+    padding:22px;
+    border-radius:22px;
+    margin-bottom:26px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+}
+
+h2 {
+    font-size:22px;
+    margin-bottom:18px;
+    font-weight:600;
+}
+
+table {
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+}
+
+th,td {
+    padding:8px 6px;
+    border-bottom:1px solid #e5e5ea;
+    font-size:13px;
+    text-align:right;
+}
+
+th:first-child, td:first-child { text-align:left; }
+
+.chart-container {
+    width:100%;
+    height:420px;
+}
+
 </style>
-</head><body>
+</head>
+<body>
 """
 
-    # ----------------- TODAY SUMMARY -----------------
+    # -------------------------------------------------------------
+    # Today Summary
+    # -------------------------------------------------------------
     html += """
+<div class="card">
 <h2>Today Summary</h2>
-<div class="table-container">
+
 <table>
 <colgroup>
-<col style='width:14%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
-<col style='width:12%;'>
+<col style="width:16%;">
+<col style="width:12%;">
+<col style="width:12%;">
+<col style="width:12%;">
+<col style="width:12%;">
+<col style="width:12%;">
+<col style="width:12%;">
+<col style="width:12%;">
 </colgroup>
-<thead><tr>
+<thead>
+<tr>
 <th>Product</th><th>Date</th><th>NAV</th>
 <th>Prod Δ (¥)</th><th>Prod Δ (%)</th>
 <th>Value (¥)</th><th>Value Δ (¥)</th><th>Value Δ (%)</th>
-</tr></thead><tbody>
+</tr>
+</thead>
+<tbody>
 """
 
     for _, r in today.iterrows():
@@ -223,121 +260,136 @@ td:first-child, th:first-child { text-align:center; }
 
     html += "</tbody></table></div>"
 
-    # ---------- helper for datasets ----------
-    def make_datasets(df, type_="bar"):
+    # -------------------------------------------------------------
+    # Chart dataset generator
+    # -------------------------------------------------------------
+    def make_bar_dataset(df):
         ds = []
         for prod in products:
             ds.append({
-                "type": type_,
+                "type": "bar",
                 "label": prod,
                 "data": df[prod].round(2).fillna(0).tolist(),
-                "backgroundColor": COLOR_MAP[prod],
-                "borderColor": COLOR_MAP[prod],
-                "borderWidth": 2,
+                "backgroundColor": COLOR_MAP.get(prod,"#888")
             })
         return ds
 
-
-    # ----------------- DAILY CHART -----------------
+    # =============================================================
+    # Daily Performance
+    # =============================================================
     daily_labels = daily["date"].tolist()
-    ds_daily = make_datasets(daily, "bar")
+    ds_daily = make_bar_dataset(daily)
 
     html += f"""
+<div class="card">
 <h2>Daily Performance</h2>
 <canvas id="dailyChart" class="chart-container"></canvas>
 <script>
 new Chart(document.getElementById("dailyChart"), {{
-    data: {{ labels: {json.dumps(daily_labels)}, datasets: {json.dumps(ds_daily)} }},
-    options: {{
-        scales: {{
-            y: {{
-                title: {{ display: true, text: 'Daily %' }}
-            }}
-        }}
-    }}
-}});
-</script>
-"""
-
-    # ----------------- WEEKLY CHART -----------------
-    weekly_labels = weekly["week"].tolist()
-    ds_weekly = make_datasets(weekly, "bar")
-
-    html += f"""
-<h2>Weekly Performance</h2>
-<canvas id="weeklyChart" class="chart-container"></canvas>
-<script>
-new Chart(document.getElementById("weeklyChart"), {{
-    data: {{ labels: {json.dumps(weekly_labels)}, datasets: {json.dumps(ds_weekly)} }},
-    options: {{
-        scales: {{
-            y: {{
-                title: {{ display: true, text: 'Weekly %' }}
-            }}
-        }}
-    }}
-}});
-</script>
-"""
-
-    # ----------------- CUMULATIVE CHART -----------------
-    cum_labels = cumulative["date"].astype(str).tolist()
-    cum_ds = []
-
-    for prod in products:
-        values = cumulative[prod].round(2).fillna(0).tolist()
-        point_sizes = [3]*(len(values)-1) + [7]  # 最新のみ大きい点
-
-        cum_ds.append({
-            "type": "line",
-            "label": prod,
-            "data": values,
-            "borderColor": COLOR_MAP[prod],
-            "backgroundColor": COLOR_MAP[prod],
-            "borderWidth": 2,
-            "tension": 0,        # ←完全に折れ線
-            "pointRadius": point_sizes,
-            "fill": False
-        })
-
-    html += f"""
-<h2>Cumulative Performance</h2>
-<canvas id="cumChart" class="chart-container"></canvas>
-<script>
-new Chart(document.getElementById("cumChart"), {{
-    plugins:[{{
-        id: 'valueLabel',
-        afterDraw(chart) {{
-            const ctx = chart.ctx;
-            chart.data.datasets.forEach((ds, i) => {{
-                const meta = chart.getDatasetMeta(i);
-                const last = meta.data[meta.data.length - 1];
-                ctx.fillStyle = ds.borderColor;
-                ctx.font = "12px -apple-system";
-                ctx.fillText(
-                    ds.data[ds.data.length-1] + "%",
-                    last.x + 6,
-                    last.y - 6
-                );
-            }});
-        }}
-    }}],
     data: {{
-        labels: {json.dumps(cum_labels)},
-        datasets: {json.dumps(cum_ds)}
+        labels: {json.dumps(daily_labels)},
+        datasets: {json.dumps(ds_daily)}
     }},
     options: {{
         scales: {{
             y: {{
-                title: {{ display: true, text: 'Cumulative %' }}
+                title: {{ display:true, text:"Daily %" }},
+                ticks: {{ stepSize:1 }}
             }}
         }}
     }}
 }});
 </script>
+</div>
+"""
+
+    # =============================================================
+    # Weekly Performance
+    # =============================================================
+    weekly_labels = [w + " W" for w in weekly["week"]]
+    ds_weekly = make_bar_dataset(weekly)
+
+    html += f"""
+<div class="card">
+<h2>Weekly Performance</h2>
+<canvas id="weeklyChart" class="chart-container"></canvas>
+<script>
+new Chart(document.getElementById("weeklyChart"), {{
+    data: {{
+        labels: {json.dumps(weekly_labels)},
+        datasets: {json.dumps(ds_weekly)}
+    }},
+    options: {{
+        scales: {{
+            y: {{
+                title: {{ display:true, text:"Weekly %" }},
+                ticks: {{ stepSize:1 }}
+            }}
+        }}
+    }}
+}});
+</script>
+</div>
+"""
+
+    # =============================================================
+    # Cumulative Performance（折れ線・点・ラベル最新）
+    # =============================================================
+    cum_labels = cumulative["date"].astype(str).tolist()
+
+    cum_ds = []
+    for prod in products:
+        vals = cumulative[prod].round(2).fillna(0).tolist()
+        cum_ds.append({
+            "type": "line",
+            "label": prod,
+            "data": vals,
+            "borderColor": COLOR_MAP.get(prod),
+            "borderWidth": 2,
+            "tension": 0,                     # ← 折れ線に
+            "pointRadius": 4,
+            "pointHoverRadius": 6,
+        })
+
+    html += f"""
+<div class="card">
+<h2>Cumulative Performance</h2>
+<canvas id="cumChart" class="chart-container"></canvas>
+
+<script>
+new Chart(document.getElementById("cumChart"), {{
+    data: {{
+        labels: {json.dumps(cum_labels)},
+        datasets: {json.dumps(cum_ds)}
+    }},
+    plugins:[{{
+        id:'valueLabel',
+        afterDraw(chart) {{
+            const ctx = chart.ctx;
+            chart.data.datasets.forEach((ds,i)=>{{
+                const meta = chart.getDatasetMeta(i);
+                const pt = meta.data[meta.data.length-1];
+                const val = ds.data[ds.data.length-1];
+                ctx.fillStyle = ds.borderColor;
+                ctx.font = "12px -apple-system";
+                ctx.fillText(val + "%", pt.x + 8, pt.y - 8);
+            }});
+        }}
+    }}],
+    options: {{
+        scales: {{
+            y: {{
+                title: {{ display:true, text:"Cumulative %" }}
+            }}
+        }}
+    }}
+}});
+</script>
+</div>
 """
 
     html += "</body></html>"
+
     (BASE/"dashboard.html").write_text(html, encoding="utf-8")
 
 
