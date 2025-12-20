@@ -1,8 +1,12 @@
 matplotlib
 pandas
+numpy
 yfinance
 beautifulsoup4
 lxml
 requests
-numpy
 python-dateutil
+
+scikit-learn
+scipy
+statsmodels
