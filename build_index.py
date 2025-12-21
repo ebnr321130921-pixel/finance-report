@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Finance Report - Index Builder (FINAL / ICON CENTERED)
+
+- Apple-like Launch Pad UI
+- Icons are the visual focus (centered & large)
+- index.html is fully auto-generated
+"""
+
+from pathlib import Path
+from datetime import datetime
+
+# =========================================================
+# PATH
+# =========================================================
+BASE_DIR = Path(__file__).resolve().parent
+OUT_HTML = BASE_DIR / "index.html"
+ICON_DIR = "Icon"
+
+# =========================================================
+# META
+# =========================================================
+UPDATED = datetime.now().strftime("%Y-%m-%d %H:%M JST")
+
+# =========================================================
+# HTML
+# =========================================================
+html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Finance Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Icons / PWA -->
+<link rel="icon" href="{ICON_DIR}/icon.png">
+<link rel="apple-touch-icon" href="{ICON_DIR}/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+
+<style>
+/* =======================================================
+   Base
+======================================================= */
+body {{
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+               "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, #2a2a2e, transparent),
+    linear-gradient(#0e0e11, #0a0a0d);
+  color: #e5e5ea;
+}}
+
+.container {{
+  max-width: 980px;
+  margin: auto;
+  padding: 56px 28px;
+}}
+
+.header {{
+  margin-bottom: 12px;
+}}
+
+h1 {{
+  font-size: 30px;
+  font-weight: 600;
+  margin: 0;
+}}
+
+.sub {{
+  margin-top: 6px;
+  font-size: 14px;
+  color: #9a9aa0;
+}}
+
+.updated {{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.4px;
+  user-select: none;
+}}
+
+/* =======================================================
+   Cards
+======================================================= */
+.grid {{
+  margin-top: 44px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 28px;
+}}
+
+.card {{
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 26px;
+  padding: 20px 28px 34px;
+  text-decoration: none;
+  color: inherit;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  box-shadow: 0 20px 40px rgba(0,0,0,.45);
+  transition: transform .25s ease, box-shadow .25s ease;
+}}
+
+.card:hover {{
+  transform: translateY(-6px);
+  box-shadow: 0 32px 64px rgba(0,0,0,.65);
+}}
+
+/* --- Icons（★ ここだけ触ればサイズ調整可 ★）--- */
+.card-icon {{
+  height: 180px;   /* ← 全アイコン共通サイズ */
+  width: auto;
+  margin-bottom:16px;
+  opacity: 0.97;
+  display: block;
+}}
+
+.card h3 {{
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+}}
+
+.card p {{
+  margin: 0;
+  font-size: 16px;
+  color: #b0b0b6;
+  line-height: 1.4;
+}}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>Finance Report</h1>
+    <div class="sub">Quantitative Decision System</div>
+    <div class="updated">Updated : {UPDATED}</div>
+  </div>
+
+  <div class="grid">
+
+    <a class="card" href="3_US_Index/us_index.html">
+      <img src="{ICON_DIR}/US_Index.png" class="card-icon" alt="US Market">
+      <h3>US Market</h3>
+      <p>Market regime & MRDI state</p>
+    </a>
+
+    <a class="card" href="2_RAKUTEN/dashboard.html">
+      <img src="{ICON_DIR}/Rakuten_Report.png" class="card-icon" alt="Asset Dashboard">
+      <h3>Asset Dashboard</h3>
+      <p>Rakuten / iDeCo / DC</p>
+    </a>
+
+    <a class="card" href="1_QQQ-SP500/analysis_report.html">
+      <img src="{ICON_DIR}/Switching_Report.png" class="card-icon" alt="Relative Analysis">
+      <h3>Relative Analysis</h3>
+      <p>QQQ vs S&amp;P500</p>
+    </a>
+
+  </div>
+
+</div>
+</body>
+</html>
+"""
+
+# =========================================================
+# WRITE
+# =========================================================
+OUT_HTML.write_text(html, encoding="utf-8")
+print("✅ index.html generated:", OUT_HTML)
