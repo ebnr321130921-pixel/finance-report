@@ -1,3 +1,4 @@
 date,signal,target,danger_level,risk_score,mrdi_short_pct,mrdi_long_pct,comment,ma20_pct,ma60_pct,ma120_pct,expected_20d_return,residual
 2025-12-18,UP,,LOW,0.177,2.3,,Summary + Proper Regression,,,,0.00885,
 2025-12-19,UP,,LOW,0.416,22.9,,Summary with regression structure & forecast,,,,,
+2025-12-22,UP,,LOW,0.519,38.8,,Summary with regression structure & forecast,,,,,
