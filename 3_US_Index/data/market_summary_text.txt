@@ -1,17 +1,17 @@
 Market Date: 2025-12-22
-Updated At: 2025-12-22 21:34
+Updated At: 2025-12-23 03:53
 
 【Daily View】
-短期MRDIは56.5%に位置し、VIXは前日比-0.83、米10年金利は+0.02変化しています。 危険度は【MODERATE】と評価されます。
+短期MRDIは77.4%に位置し、VIXは前日比-0.83、米10年金利は+0.02変化しています。 危険度は【HIGH】と評価されます。
 
 【Weekly View】
-RiskScoreは0.64で、先週平均と比べて+0.12の変化です。
+RiskScoreは0.76で、先週平均と比べて+0.22の変化です。
 
 【Structural View】
-長期MRDIは62.6%と平均的な水準にあり、構造的なレジーム転換を示す水準ではありません。
+長期MRDIは69.2%と平均的な水準にあり、構造的なレジーム転換を示す水準ではありません。
 
 【MA-Based Early Signal】
-MA20_MRDIは上位61.3%、MA60_MRDIは上位30.1%に位置しています。
+MA20_MRDIは上位60.0%、MA60_MRDIは上位32.5%に位置しています。
 
 【Regression & Forecast Interpretation】
 回帰分析の構造を見ると、明確な寄与因子は限定的。
@@ -19,4 +19,4 @@ MA20_MRDIは上位61.3%、MA60_MRDIは上位30.1%に位置しています。
 forecastモデルの数値予測は現時点では参考外です。
 
 【Issued Signal】
-HOLD (Danger Level: MODERATE)
+HOLD (Danger Level: HIGH)
