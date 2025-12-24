@@ -1,6 +1,6 @@
 ﻿as_of_date,target_date,horizon,window,direction_score,direction,recommended_action,confidence,jp_comment,dominant_factors
 2025-12-24,2026-01-26,1M,10y,-8.98,DOWN,SP500,HIGH,下方向バイアスが強い,RET_QQQ_MA60;RET_NASDAQ_MA60;RET_VIX_MA60;RET_US10Y_MA60;RET_TLT_MA60
-2025-12-24,2026-01-26,1M,1y,3.0,UP,QQQ,HIGH,上方向バイアスが強い,m_1_x_MRDI_Short_x_dQQQ_D;m_1_x_MRDI_Short_x_dQQQ_W_x_RET_QQQ;m_1_x_MRDI_Long_x_dQQQ_W_x_RET_QQQ;m_7_x_MRDI_Short_x_RET_QQQ;m_7_x_MRDI_Short_x_dQQQ_M
+2025-12-24,2026-01-26,1M,1y,3.01,UP,QQQ,HIGH,上方向バイアスが強い,m_1_x_MRDI_Short_x_dQQQ_D;m_1_x_MRDI_Short_x_dQQQ_W_x_RET_QQQ;m_1_x_MRDI_Long_x_dQQQ_W_x_RET_QQQ;m_7_x_MRDI_Short_x_RET_QQQ;m_7_x_MRDI_Short_x_dQQQ_M
 2025-12-24,2026-01-26,1M,3y,3.72,UP,QQQ,HIGH,上方向バイアスが強い,MRDI_Long;RiskScore;m_3_x_RET_QQQ;m_3_x_RET_SP500;m_5_x_RET_QQQ
 2025-12-24,2026-01-26,1M,5y,4.94,UP,QQQ,HIGH,上方向バイアスが強い,RET_QQQ_MA60;RET_SP500_MA60;RET_NASDAQ_MA60;RET_VIX_MA60;RET_GOLD_MA60
 2025-12-24,2026-01-26,1M,all,-15.27,DOWN,SP500,HIGH,下方向バイアスが強い,RET_QQQ_MA60;RET_NASDAQ_MA60;RET_VIX_MA60;RET_USDJPY_MA60;MRDI_Long
