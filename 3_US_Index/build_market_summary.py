@@ -1,0 +1,413 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Market Summary Builder（FINAL / PRODUCTION）
+
+- 回帰は fit しない（構造説明のみ）
+- regression_coefficients_latest / regression_metrics_latest を解釈
+- forecast は数値予測の唯一ソース
+- 列名揺れ・NaN 完全耐性
+- 投資判断用の Market Memo を生成
+- Mahalanobis Short × Long 散布図用データセットを同時生成
+"""
+
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from datetime import datetime
+
+# =========================================================
+# PATH
+# =========================================================
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+
+RAW_PATH        = DATA_DIR / "market_factors_raw.csv"
+METRIC_PATH     = DATA_DIR / "market_state_metrics.csv"
+LATEST_POS_PATH = DATA_DIR / "latest_cluster_position.csv"
+
+REG_COEF_PATH    = DATA_DIR / "regression_coefficients_latest.csv"
+REG_METRICS_PATH = DATA_DIR / "regression_metrics_latest.csv"
+FORECAST_PATH    = DATA_DIR / "forecast" / "forecast_2025.csv"
+
+SUMMARY_TEXT_PATH  = DATA_DIR / "market_summary_text.txt"
+SUMMARY_TABLE_PATH = DATA_DIR / "market_summary_table.csv"
+DECISION_LOG_PATH  = DATA_DIR / "decision_log.csv"
+
+# 互換のため残置
+SCATTER_OUT_PATH = DATA_DIR / "mahalanobis_scatter_short_long.csv"
+
+# Scatter / Stats
+MRDI_SCATTER_OUT_PATH = DATA_DIR / "mrdi_scatter_short_long.csv"
+DIST_SUMMARY_OUT_PATH = DATA_DIR / "market_state_distribution_summary.csv"
+
+# =========================================================
+# UTIL
+# =========================================================
+def load_csv_with_date(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    for c in ["date", "Date", "market_date", "global_market_date"]:
+        if c in df.columns:
+            df[c] = pd.to_datetime(df[c])
+            return df.rename(columns={c: "date"})
+    raise ValueError(f"No date column found in {path.name}")
+
+def safe_val(df, col):
+    return df[col].iloc[0] if col in df.columns and not df.empty else np.nan
+
+def extract_forecast_return(df):
+    for c in df.columns:
+        if c.lower() in ["expected_return", "forecast_return", "return", "expected", "value"]:
+            return df[c].iloc[-1]
+    return np.nan
+
+def top_contributors(df, n=3):
+    col_feature = None
+    col_coef = None
+    for c in df.columns:
+        if c.lower() in ["feature", "feature_name", "name"]:
+            col_feature = c
+        if c.lower() in ["coefficient", "coef", "beta", "value"]:
+            col_coef = c
+    if col_feature is None or col_coef is None:
+        return pd.DataFrame()
+    d = df[[col_feature, col_coef]].copy()
+    d.columns = ["feature", "coefficient"]
+    d["abs_coef"] = d["coefficient"].abs()
+    return d.sort_values("abs_coef", ascending=False).head(n)
+
+def pct(a, b):
+    if b == 0 or pd.isna(b):
+        return None
+    return (a - b) / abs(b) * 100
+
+# =========================================================
+# LOAD
+# =========================================================
+raw        = load_csv_with_date(RAW_PATH)
+metrics    = load_csv_with_date(METRIC_PATH)
+latest_pos = pd.read_csv(LATEST_POS_PATH)
+
+reg_coef    = pd.read_csv(REG_COEF_PATH)
+reg_metrics = pd.read_csv(REG_METRICS_PATH)
+forecast    = pd.read_csv(FORECAST_PATH)
+
+# --- Directional Forecast (Regression Aggregated Result) ---
+DIRECTION_FORECAST_PATH = DATA_DIR / "forward_direction_forecast_log.csv"
+direction_df = pd.read_csv(DIRECTION_FORECAST_PATH)
+
+
+# =========================================================
+# DATE
+# =========================================================
+latest_date = raw["date"].max()
+prev_date   = raw.loc[raw["date"] < latest_date, "date"].max()
+
+raw_latest = raw.loc[raw["date"] == latest_date].iloc[0]
+raw_prev   = raw.loc[raw["date"] == prev_date].iloc[0]
+
+m_latest   = metrics.iloc[-1]
+m_prev     = metrics.iloc[-2]
+m_week_avg = metrics.tail(5).mean(numeric_only=True)
+
+week_dates = raw.tail(5)["date"]
+week_from  = week_dates.min()
+week_to    = week_dates.max()
+
+
+# =========================================================
+# BASIC VALUES
+# =========================================================
+forecast_return = extract_forecast_return(forecast)
+risk = m_latest["RiskScore"]
+
+mrdi_s_pct = safe_val(latest_pos, "MRDI_Short_pct")
+mrdi_l_pct = safe_val(latest_pos, "MRDI_Long_pct")
+ma20_pct   = safe_val(latest_pos, "MA20_MRDI_pct")
+ma60_pct   = safe_val(latest_pos, "MA60_MRDI_pct")
+
+vix_diff  = raw_latest["VIX"]   - raw_prev["VIX"]
+rate_diff = raw_latest["US10Y"] - raw_prev["US10Y"]
+
+# =========================================================
+# SUMMARY TABLE
+# =========================================================
+ITEMS = [
+    "QQQ", "SP500", "NASDAQ", "DOW",
+    "VIX", "US10Y", "USDJPY",
+    "RiskScore", "MRDI_Short", "MRDI_Long",
+]
+
+rows = []
+
+for c in ITEMS:
+    if c in raw.columns:
+        latest   = raw_latest[c]
+        prev     = raw_prev[c]
+        week_avg = raw.tail(5)[c].mean()
+    else:
+        latest   = m_latest[c]
+        prev     = m_prev[c]
+        week_avg = m_week_avg[c]
+
+    rows.append({
+        # --- Market Date Context ---
+        "market_date": latest_date.date(),
+        "prev_market_date": prev_date.date(),
+        "week_avg_from": week_from.date(),
+        "week_avg_to": week_to.date(),
+
+        # --- Data ---
+        "Item": c,
+        "Latest": round(latest, 4),
+        "Δ vs Yesterday": round(latest - prev, 4),
+        "% vs Yesterday": round(pct(latest, prev), 2),
+        "Δ vs LastWeekAvg": round(latest - week_avg, 4),
+        "% vs LastWeekAvg": round(pct(latest, week_avg), 2),
+    })
+
+rows.extend([
+    {
+        "market_date": latest_date.date(),
+        "prev_market_date": prev_date.date(),
+        "week_avg_from": week_from.date(),
+        "week_avg_to": week_to.date(),
+
+        "Item": "MA20_MRDI",
+        "Latest": round(m_latest["MA20_MRDI"], 3),
+        "Percentile": round(ma20_pct, 1),
+    },
+    {
+        "market_date": latest_date.date(),
+        "prev_market_date": prev_date.date(),
+        "week_avg_from": week_from.date(),
+        "week_avg_to": week_to.date(),
+
+        "Item": "MA60_MRDI",
+        "Latest": round(m_latest["MA60_MRDI"], 3),
+        "Percentile": round(ma60_pct, 1),
+    },
+])
+
+pd.DataFrame(rows).to_csv(SUMMARY_TABLE_PATH, index=False)
+
+# =========================================================
+# DANGER / SIGNAL
+# =========================================================
+if mrdi_s_pct >= 85 and risk >= 0.75:
+    danger = "EXTREME"
+elif mrdi_s_pct >= 70 or risk >= 0.65:
+    danger = "HIGH"
+elif mrdi_s_pct >= 50:
+    danger = "MODERATE"
+else:
+    danger = "LOW"
+
+signal = "HOLD"
+if danger == "EXTREME":
+    signal = "DOWN"
+elif danger == "LOW":
+    signal = "UP"
+
+# =========================================================
+# REGRESSION INTERPRETATION
+# =========================================================
+
+# ① まず使う行を決める
+def pick_view(df, horizon):
+    d = df[(df["horizon"] == horizon) & (df["window"] == "all")]
+    return d.iloc[0] if not d.empty else None
+
+view_1w = pick_view(direction_df, "1W")
+view_1m = pick_view(direction_df, "1M")
+
+# ② CSV1行 → 日本語に変換
+def build_direction_sentence(v):
+    if v is None:
+        return "方向性判断データは未取得です。"
+
+    return (
+        f"{v['horizon']}視点では【{v['direction']}】判定、"
+        f"信頼度は【{v['confidence']}】。\n"
+        f"{v['jp_comment']}（スコア {v['direction_score']:+.2f}）。"
+    )
+
+# ③ Summary用テキストを作る
+direction_view = (
+    "本モデルでは回帰分析を用いて市場の方向性バイアスを評価しています。\n\n"
+    "【短期（1W）】\n"
+    + build_direction_sentence(view_1w)
+    + "\n\n【中期（1M）】\n"
+    + build_direction_sentence(view_1m)
+)
+
+# =========================================================
+# SUMMARY TEXT
+# =========================================================
+daily = (
+    f"短期MRDIは{mrdi_s_pct:.1f}%に位置し、"
+    f"VIXは前日比{vix_diff:+.2f}、米10年金利は{rate_diff:+.2f}変化しています。"
+    f" 危険度は【{danger}】と評価されます。"
+)
+
+weekly = (
+    f"RiskScoreは{risk:.2f}で、先週平均と比べて"
+    f"{(risk - m_week_avg['RiskScore']):+.2f}の変化です。"
+)
+
+structural = (
+    f"長期MRDIは{mrdi_l_pct:.1f}%と平均的な水準にあり、"
+    "構造的なレジーム転換を示す水準ではありません。"
+)
+
+ma_view = (
+    f"MA20_MRDIは上位{ma20_pct:.1f}%、"
+    f"MA60_MRDIは上位{ma60_pct:.1f}%に位置しています。"
+)
+
+forecast_sentence = (
+    f"forecastモデルでは2025年は{forecast_return*100:+.1f}%と想定されています。"
+    if not np.isnan(forecast_return)
+    else "forecastモデルの数値予測は現時点では参考外です。"
+)
+
+with open(SUMMARY_TEXT_PATH, "w", encoding="utf-8") as f:
+    f.write(f"Market Date: {latest_date.date()}\n")
+    f.write(f"Updated At: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+    f.write("【Daily View】\n" + daily + "\n\n")
+    f.write("【Weekly View】\n" + weekly + "\n\n")
+    f.write("【Structural View】\n" + structural + "\n\n")
+    f.write("【MA-Based Early Signal】\n" + ma_view + "\n\n")
+    f.write("【Directional Bias Assessment（Regression-based）】\n" + direction_view + "\n\n")
+    f.write("【Issued Signal】\n" + f"{signal} (Danger Level: {danger})\n")
+
+# =========================================================
+# DECISION LOG
+# =========================================================
+log_row = {
+    "date": latest_date.normalize(),
+    "signal": signal,
+    "danger_level": danger,
+    "risk_score": round(risk, 3),
+    "mrdi_short_pct": round(mrdi_s_pct, 1),
+    "comment": "Summary with regression structure & forecast"
+}
+
+if DECISION_LOG_PATH.exists():
+    log_df = pd.read_csv(DECISION_LOG_PATH, parse_dates=["date"])
+    log_df = log_df[log_df["date"] != latest_date.normalize()]
+    log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
+else:
+    log_df = pd.DataFrame([log_row])
+
+log_df.to_csv(DECISION_LOG_PATH, index=False)
+
+# =========================================================
+# MRDI SCATTER DATASET（Short × Long） + DISTRIBUTION STATS
+# =========================================================
+md_df = metrics.copy()
+
+required_cols = [
+    "MRDI_Short",
+    "MRDI_Long",
+    "MA20_MRDI",
+    "MA60_MRDI",
+    "RiskScore",
+]
+
+
+if all(c in md_df.columns for c in required_cols):
+
+    scatter = md_df[
+    [
+        "date",
+        "MRDI_Short",
+        "MRDI_Long",
+        "MA20_MRDI",
+        "MA60_MRDI",
+        "RiskScore",
+    ]
+    ].copy()
+
+    scatter.columns = [
+        "date",
+        "mrdi_short",
+        "mrdi_long",
+        "ma20_mrdi",
+        "ma60_mrdi",
+        "risk_score",
+    ]
+
+    scatter = scatter.dropna().sort_values("date").reset_index(drop=True)
+    latest_idx = len(scatter) - 1
+
+    # is_latest = 時系列ウェイト
+    def calc_is_latest(idx, latest_idx):
+        w = 1.0 - 0.2 * (latest_idx - idx)
+        return max(w, 0.0)
+
+    scatter["is_latest"] = [calc_is_latest(i, latest_idx) for i in range(len(scatter))]
+
+    # -----------------------------------------------------
+    # display_roled
+    # 0 = base, 1 = trace, 2 = now
+    # -----------------------------------------------------
+    def calc_display_roled(v):
+        if v == 1:
+            return 2
+        elif v == 0:
+            return 0
+        else:
+            return 1
+
+    scatter["display_roled"] = scatter["is_latest"].apply(calc_display_roled)
+
+    scatter.to_csv(MRDI_SCATTER_OUT_PATH, index=False)
+
+    # -----------------------------------------------------
+    # Distribution Summary
+    # -----------------------------------------------------
+    stats_rows = []
+
+    for col in [
+        "mrdi_short",
+        "mrdi_long",
+        "ma20_mrdi",
+        "ma60_mrdi",
+        "risk_score",
+    ]:
+        s = scatter[col]
+        mean   = s.mean()
+        std    = s.std()
+        median = s.median()
+
+        stats_rows.append({
+            "metric": col,
+            "mean": round(mean, 4),
+            "std": round(std, 4),
+            "+1sigma": round(mean + std, 4),
+            "-1sigma": round(mean - std, 4),
+            "+3sigma": round(mean + 3 * std, 4),
+            "-3sigma": round(mean - 3 * std, 4),
+            "median": round(median, 4),
+        })
+
+    pd.DataFrame(stats_rows).to_csv(DIST_SUMMARY_OUT_PATH, index=False)
+
+    print("=== MRDI Scatter & Distribution Summary Generated ===")
+    print("Scatter Rows :", len(scatter))
+    print("Latest Date  :", scatter.loc[latest_idx, "date"].date())
+    print("Scatter CSV  :", MRDI_SCATTER_OUT_PATH)
+    print("Stats CSV    :", DIST_SUMMARY_OUT_PATH)
+
+else:
+    print("WARNING: Required columns not found. Scatter / Stats not generated.")
+
+# =========================================================
+# DONE
+# =========================================================
+print("=== MARKET SUMMARY GENERATED (FINAL + MAHALANOBIS SCATTER) ===")
+print("Summary :", SUMMARY_TEXT_PATH)
+print("Table   :", SUMMARY_TABLE_PATH)
+print("Decision:", DECISION_LOG_PATH)
