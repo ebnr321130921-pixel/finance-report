@@ -1,7 +1,0 @@
-"section,key,title,description"
-"MRDI,definition,MRDIとは,複数の市場指標を同時に考慮し、現在の市場状態が過去の通常状態からどれだけ乖離しているかを測定する指標です。上昇・下落の方向を直接示すものではありません。"
-"MRDI_Short,role,MRDI_Shortの役割,短期の市場分布を基準とした乖離度で、当日～直近に発生しやすい急激な値動きや市場の歪みを検知します。"
-"MRDI_Long,role,MRDI_Longの役割,長期の市場分布を基準とした乖離度で、市場構造やレジームが通常状態から外れているかを示します。"
-"RiskScore,role,RiskScoreの役割,MRDI_ShortとMRDI_Longを統合した実務向け指標で、市場が通常運用モードか注意モードかを判断する行動スイッチとして用いられます。"
-"Summary,scope,Summaryの位置づけ,本Summaryは市場の方向性を断定するものではなく、現在の市場環境下で適切なリスク管理姿勢を判断するための情報提供を目的としています。"
-"Signal,scope,Signalの意味,Signalは上昇・下落を示す予測ではなく、市場状態に応じた行動モードを示すものです。"
