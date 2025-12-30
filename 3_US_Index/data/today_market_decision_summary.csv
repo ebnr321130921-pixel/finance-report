@@ -1,5 +1,0 @@
-﻿forecast_date,asset,forecast_horizon,forecast_period,predicted_return,predicted_direction,actual_return,actual_direction,direction_correct,prediction_error
-2025-12-30,QQQ,1W,2026-01-07 → 2026-01-13,-0.0024059497513326117,DOWN,,,,
-2025-12-30,QQQ,1M,2026-01-29 → 2026-02-26,-0.011019466627765984,DOWN,,,,
-2025-12-30,SP500,1W,2026-01-07 → 2026-01-13,-0.007692405720338837,DOWN,,,,
-2025-12-30,SP500,1M,2026-01-29 → 2026-02-26,-0.009113969670477728,DOWN,,,,
