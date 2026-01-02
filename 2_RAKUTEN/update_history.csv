@@ -1,0 +1,3 @@
+version,update_date,title,summary
+1.00,2025-12-15,"Initial Release","基本的な市場データ取得と可視化機能を実装"
+2.00,2026-01-02,"Market Logic Update","市場日判定の見直し、累積ロジック整理、グラフ表示改善、履歴管理を追加"
