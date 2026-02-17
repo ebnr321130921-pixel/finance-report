@@ -1,5 +1,1 @@
 ﻿asset,forecast_horizon,forecast_period,predicted_return,actual_return,direction_correct
-QQQ,1M,2026-01-16 → 2026-02-13,-0.0197608579248509,0.0,False
-QQQ,1W,2026-02-09 → 2026-02-13,-0.057528898795881,0.0,False
-SP500,1M,2026-01-16 → 2026-02-13,-0.0230180213485892,0.0,False
-SP500,1W,2026-02-09 → 2026-02-13,-0.0487464356376596,0.002168052876794,False
