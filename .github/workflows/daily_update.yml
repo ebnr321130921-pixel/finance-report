@@ -2,92 +2,75 @@ name: Daily Data Update
 
 on:
   schedule:
-    # JST 0:00 / 6:00 / 9:00 / 12:00 / 17:00 / 19:00 / 21:00 / 23:00
-    # ※ GitHub Actions は UTC 基準
-    - cron: '0 15 * * *'  # JST 00:00
-    - cron: '0 21 * * *'  # JST 06:00
+    # GitHub Actions は UTC 基準
+    # JST 09:00 / 12:00 / 15:00 / 18:00 / 21:00 / 23:00
     - cron: '0 0  * * *'  # JST 09:00
     - cron: '0 3  * * *'  # JST 12:00
-    - cron: '0 8  * * *'  # JST 17:00
-    - cron: '0 10 * * *'  # JST 19:00
+    - cron: '0 6  * * *'  # JST 15:00
+    - cron: '0 9  * * *'  # JST 18:00
     - cron: '0 12 * * *'  # JST 21:00
     - cron: '0 14 * * *'  # JST 23:00
 
-    # ------------------------------------------------------------
-    # ★ 追加分（JST 15:00 / 16:00 / 18:00 / 20:00 / 22:00）
-    # ------------------------------------------------------------
-    - cron: '0 6  * * *'  # JST 15:00
-    - cron: '0 7  * * *'  # JST 16:00
-    - cron: '0 9  * * *'  # JST 18:00
-    - cron: '0 11 * * *'  # JST 20:00
-    - cron: '0 13 * * *'  # JST 22:00
-
   workflow_dispatch:
+
+concurrency:
+  group: daily-data-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
-      # ------------------------------------------------------------
-      # Python
-      # ------------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      # ------------------------------------------------------------
-      # Dependencies
-      # ------------------------------------------------------------
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ------------------------------------------------------------
-      # QQQ / SP500
-      # ------------------------------------------------------------
       - name: Run QQQ / SP500 updater
         run: |
-          python3 1_QQQ-SP500/update_all.py
+          python 1_QQQ-SP500/update_all.py
 
-      # ------------------------------------------------------------
-      # Rakuten
-      # ------------------------------------------------------------
       - name: Run Rakuten updater
         run: |
-          python3 2_RAKUTEN/rakuten_update.py
+          python 2_RAKUTEN/rakuten_update.py
 
-      # ------------------------------------------------------------
-      # US Index（本命）
-      # ------------------------------------------------------------
-      - name: Run US Index (ALL)
+      - name: Run US Index updater
         run: |
-          python3 3_US_Index/run_all.py
+          python 3_US_Index/run_all.py
 
-      # ------------------------------------------------------------
-      # Index.html Build
-      # ------------------------------------------------------------
       - name: Build index.html
         run: |
-          python3 build_index.py
+          python build_index.py
 
-      # ------------------------------------------------------------
-      # Commit & Push
-      # ------------------------------------------------------------
-      - name: Commit and push changes (robust, no rollback)
+      - name: Commit and push changes
         run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
 
           git add -A
-          git commit -m "Auto update" || echo "No changes"
-          git push --force-with-lease
+
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+
+          git commit -m "Auto update"
+
+          git pull --rebase origin main
+          git push origin main
