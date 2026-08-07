@@ -1,0 +1,11 @@
+﻿product,account,units,status,planned_value,change_date,change_value,Zero_date,settlement_date,start,start_value
+楽天QQQ,iDeCo,24820331,active,,2025/11/18,38272241,2025/11/18,,2023/8/3,24074680
+楽天QQQ,NISA,278645,active,,2026/5/7,500000,2026/5/7,,,
+楽天QQQ,NISA,509373,active,,2026/6/4,1000000,2026/6/4,2026/6/9,,
+楽天レバナス,Personal,0,watch,,2025/11/26,500000,2025/11/18,,,
+楽天SP500,Personal,0,watch,,,,2025/11/18,,,
+楽天VTI,Personal,0,watch,,,,2025/11/18,,,
+楽天SOX,NISA,174636,active,,,,2026/5/7,,,
+楽天SOX,NISA,118832,active,,2026/6/12,400000,2026/6/12,,,
+iFreeFANG+,Personal,0,watch,,,,2026/5/24,,,
+iFreeNASDAQ100,NISA,116303,active,,2026/7/29,630000,2026/7/29,,,
