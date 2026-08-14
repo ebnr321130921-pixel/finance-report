@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="UTF-8">
+    <title>Finance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+            :root {
+                --bg-main:#f5f6f8;
+                --card-bg:#ffffff;
+
+                --text-main:#1f2933;
+                --text-sub:#5f6b7a;
+                --text-soft:#7b8794;
+
+                --border:#d9dee7;
+                --border-strong:#c5ccd8;
+
+                --accent-pos:#2563eb;
+                --accent-neg:#b42318;
+
+                --shadow-sm:none;
+                --shadow-md:none;
+            }
+
+            * { box-sizing:border-box; }
+
+            body {
+                background:var(--bg-main);
+                font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+                padding:24px;
+                color:var(--text-main);
+                font-size:14px;
+                line-height:1.55;
+                letter-spacing:0;
+                -webkit-font-smoothing:antialiased;
+                -moz-osx-font-smoothing:grayscale;
+                text-rendering:optimizeLegibility;
+            }
+
+            .card {
+                background:var(--card-bg);
+                padding:20px 22px;
+                border-radius:4px;
+                margin-bottom:18px;
+                border:1px solid var(--border);
+                box-shadow:var(--shadow-md);
+            }
+
+            h2 {
+                font-size:18px;
+                margin-bottom:14px;
+                font-weight:400;
+                color:var(--text-main);
+                letter-spacing:0;
+            }
+
+            h3 {
+                font-size:15px;
+                font-weight:400;
+                color:var(--text-main);
+                letter-spacing:0;
+            }
+
+            table {
+                width:100%;
+                border-collapse:separate;
+                border-spacing:0;
+                font-variant-numeric:tabular-nums;
+            }
+
+            th, td {
+                padding:10px 12px;
+                border-bottom:1px solid var(--border);
+                font-size:14px;
+                line-height:1.45;
+                text-align:right;
+                color:var(--text-main);
+            }
+
+            th {
+                font-weight:400;
+                font-size:12px;
+                letter-spacing:0;
+                text-transform:none;
+                color:var(--text-soft);
+            }
+
+            td { font-weight:400; }
+
+            tr:hover td {
+                background:#f8fafc;
+            }
+
+            th:first-child,
+            td:first-child { text-align:left; }
+
+            .chart-container {
+                width:100%;
+                height:420px;
+                margin-top:8px;
+                padding:14px 12px 8px 12px;
+                border-radius:4px;
+                background:#ffffff;
+                border:1px solid var(--border);
+                box-shadow:var(--shadow-sm) inset;
+            }
+
+            .chart-container canvas {
+                width:100% !important;
+                height:100% !important;
+            }
+
+            summary {
+                cursor:pointer;
+                font-size:16px;
+                font-weight:400;
+                color:var(--text-main);
+                list-style:none;
+                letter-spacing:0;
+            }
+
+            summary::-webkit-details-marker {
+                display:none;
+            }
+
+            .highlight {
+                font-weight:400;
+                color:var(--text-main);
+            }
+
+            .section-title {
+                position:relative;
+                display:inline-flex;
+                align-items:center;
+                gap:8px;
+                padding:4px 10px 4px 0;
+                font-size:18px;
+                font-weight:400;
+                color:var(--text-main);
+                letter-spacing:0;
+                border-bottom:1px solid var(--border-strong);
+            }
+
+            .section-title::before {
+                content:"";
+                display:inline-block;
+                width:3px;
+                height:18px;
+                background:#2563eb;
+            }
+
+            /* +/- coloring */
+            .pos { color: var(--accent-pos); font-weight: 400; }
+            .neg { color: var(--accent-neg); font-weight: 400; }
+
+            /* key metrics (iDeCo) */
+            .key-metric { font-size: 16px; font-weight: 400; color: var(--text-main); letter-spacing:0; }
+            .key-metric.pos { color: var(--accent-pos); }
+            .key-metric.neg { color: var(--accent-neg); }
+
+            a.product-link {
+                color:var(--text-main);
+                text-decoration:none;
+                border-bottom:1px solid var(--border-strong);
+            }
+
+            a.product-link:hover {
+                color:var(--accent-pos);
+                border-bottom-color:var(--accent-pos);
+            }
+
+            .portfolio-table th,
+            .portfolio-table td {
+                white-space: nowrap;
+            }
+
+            .portfolio-main {
+                cursor: pointer;
+            }
+
+            .portfolio-main:hover td {
+                background:#f8fafc;
+            }
+
+            .lot-detail-row {
+                display: none;
+            }
+
+            .lot-detail-row.open {
+                display: table-row;
+            }
+
+            .lot-detail-cell {
+                padding:0 12px 12px 12px;
+                background:#fbfcfe;
+            }
+
+            .lot-table {
+                width:100%;
+                margin:0;
+                border-top:1px solid var(--border);
+            }
+
+            .lot-table th,
+            .lot-table td {
+                padding:8px 10px;
+                font-size:13px;
+                white-space: nowrap;
+            }
+
+            .total-row td {
+                border-top:1px solid var(--border-strong);
+                background:#f8fafc;
+                font-weight:500;
+            }
+
+            .private-section {
+                margin-bottom:18px;
+            }
+
+            .private-section > summary {
+                display:block;
+                width:100%;
+                background:var(--card-bg);
+                padding:20px 22px;
+                border-radius:4px;
+                margin-bottom:18px;
+                border:1px solid var(--border);
+                cursor:pointer;
+            }
+
+            .rule-list {
+                margin:0;
+                padding-left:20px;
+                color:var(--text-main);
+            }
+
+            .rule-list li {
+                margin:0 0 12px 0;
+                line-height:1.65;
+            }
+
+            .rule-list li:last-child {
+                margin-bottom:0;
+            }
+
+            .rule-note {
+                margin:14px 0 0 0;
+                padding-top:12px;
+                border-top:1px solid var(--border);
+                color:var(--text-sub);
+                font-size:13px;
+            }
+
+        </style>
+
+        <script>
+        function toggleLotRow(id) {
+            var row = document.getElementById(id);
+            if (!row) return;
+            row.classList.toggle("open");
+        }
+        </script>
+
+    </head>
+    <body>
+    <div class="card"><h2 class="section-title">Market Summary</h2><table>
+<tr><th>Product</th><th>Date</th><th>NAV</th><th>Daily %</th><th>Δ ¥ /10k</th></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000Q2U6' target='_blank' rel='noopener noreferrer'>Rakuten S&P 500</a></td><td>2026-08-13</td><td>20,211</td><td class='pos'>+0.27%</td><td class='pos'>+55</td></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000QF22' target='_blank' rel='noopener noreferrer'>Rakuten QQQ</a></td><td>2026-08-13</td><td>19,039</td><td class='pos'>+0.74%</td><td class='pos'>+141</td></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000MLM1' target='_blank' rel='noopener noreferrer'>Rakuten LN</a></td><td>2026-08-13</td><td>16,334</td><td class='pos'>+1.54%</td><td class='pos'>+252</td></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000QF30' target='_blank' rel='noopener noreferrer'>Rakuten SOX</a></td><td>2026-08-13</td><td>31,574</td><td class='pos'>+2.46%</td><td class='pos'>+778</td></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000FZD4' target='_blank' rel='noopener noreferrer'>iFreeNEXT FANG+</a></td><td>2026-08-13</td><td>99,084</td><td class='neg'>-0.56%</td><td class='neg'>-553</td></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000KW84' target='_blank' rel='noopener noreferrer'>NASDAQ100 3x Bull</a></td><td>2026-08-13</td><td>35,390</td><td class='pos'>+2.30%</td><td class='pos'>+813</td></tr><tr><td><a class='product-link' href='https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000GUN2' target='_blank' rel='noopener noreferrer'>iFreeNEXT NASDAQ100</a></td><td>2026-08-13</td><td>56,507</td><td class='pos'>+0.74%</td><td class='pos'>+420</td></tr></table></div><details class="private-section"><summary><span class="section-title">Portfolio (Private)</span></summary>
+<div class="card"><h2 class="section-title">Total Assets</h2>
+<table class="portfolio-table">
+<tr><th>Account</th><th>Value ¥</th><th>Daily ¥</th><th>Since ¥</th><th>Since %</th></tr><tr class='total-row'><td>All Assets</td><td>50,339,525</td><td class='pos'>+388,881</td><td class='pos'>+9,037,284</td><td class='pos'>+21.88%</td></tr><tr class='total-row'><td>Personal (NISA)</td><td>3,084,097</td><td class='pos'>+38,823</td><td class='pos'>+54,096</td><td class='pos'>+1.79%</td></tr><tr><td>iDeCo</td><td>47,255,428</td><td class='pos'>+350,059</td><td class='pos'>+8,983,187</td><td class='pos'>+23.47%</td></tr><tr><td>NISA</td><td>3,084,097</td><td class='pos'>+38,823</td><td class='pos'>+54,096</td><td class='pos'>+1.79%</td></tr></table></div>
+<div class="card"><h2 class="section-title">Portfolio</h2>
+<table class="portfolio-table">
+<tr><th>Product</th><th>Account</th><th>Status</th><th>Units</th><th>Value ¥</th><th>Daily ¥</th><th>Since ¥</th><th>Since %</th></tr><tr class='portfolio-main' onclick="toggleLotRow('lot-detail-0')"><td>Rakuten QQQ</td><td>iDeCo</td><td>active</td><td>24820331</td><td>47,255,428</td><td class='pos'>+350,059</td><td class='pos'>+8,983,187</td><td class='pos'>+23.47%</td></tr><tr id='lot-detail-0' class='lot-detail-row'><td class='lot-detail-cell' colspan='8'>
+        <table class="lot-table">
+        <tr><th>Trade</th><th>Status</th><th>Units</th><th>Investment</th><th>Value ¥</th><th>Gain</th><th>Gain %</th></tr><tr><td>2025-11-18</td><td>active</td><td>24820331</td><td>38,272,241 ¥</td><td>47,255,428</td><td class='pos'>+8,983,187 ¥</td><td class='pos'>+23.47%</td></tr></table></td></tr><tr class='portfolio-main' onclick="toggleLotRow('lot-detail-1')"><td>Rakuten QQQ</td><td>NISA</td><td>active</td><td>788018</td><td>1,500,307</td><td class='pos'>+11,114</td><td class='pos'>+307</td><td class='pos'>+0.02%</td></tr><tr id='lot-detail-1' class='lot-detail-row'><td class='lot-detail-cell' colspan='8'>
+        <table class="lot-table">
+        <tr><th>Trade</th><th>Status</th><th>Units</th><th>Investment</th><th>Value ¥</th><th>Gain</th><th>Gain %</th></tr><tr><td>2026-05-07</td><td>active</td><td>278645</td><td>500,000 ¥</td><td>530,512</td><td class='pos'>+30,512 ¥</td><td class='pos'>+6.10%</td></tr><tr><td>2026-06-04</td><td>active</td><td>509373</td><td>1,000,000 ¥</td><td>969,795</td><td class='neg'>-30,205 ¥</td><td class='neg'>-3.02%</td></tr></table></td></tr><tr class='portfolio-main' onclick="toggleLotRow('lot-detail-2')"><td>Rakuten SOX</td><td>NISA</td><td>active</td><td>293468</td><td>926,596</td><td class='pos'>+22,823</td><td class='pos'>+26,596</td><td class='pos'>+2.96%</td></tr><tr id='lot-detail-2' class='lot-detail-row'><td class='lot-detail-cell' colspan='8'>
+        <table class="lot-table">
+        <tr><th>Trade</th><th>Status</th><th>Units</th><th>Investment</th><th>Value ¥</th><th>Gain</th><th>Gain %</th></tr><tr><td>2026-05-07</td><td>active</td><td>174636</td><td>500,000 ¥</td><td>551,396</td><td class='pos'>+51,395 ¥</td><td class='pos'>+10.28%</td></tr><tr><td>2026-06-12</td><td>active</td><td>118832</td><td>400,000 ¥</td><td>375,200</td><td class='neg'>-24,800 ¥</td><td class='neg'>-6.20%</td></tr></table></td></tr><tr class='portfolio-main' onclick="toggleLotRow('lot-detail-3')"><td>iFreeNEXT NASDAQ100</td><td>NISA</td><td>active</td><td>116303</td><td>657,193</td><td class='pos'>+4,886</td><td class='pos'>+27,193</td><td class='pos'>+4.32%</td></tr><tr id='lot-detail-3' class='lot-detail-row'><td class='lot-detail-cell' colspan='8'>
+        <table class="lot-table">
+        <tr><th>Trade</th><th>Status</th><th>Units</th><th>Investment</th><th>Value ¥</th><th>Gain</th><th>Gain %</th></tr><tr><td>2026-07-29</td><td>active</td><td>116303</td><td>630,000 ¥</td><td>657,193</td><td class='pos'>+27,193 ¥</td><td class='pos'>+4.32%</td></tr></table></td></tr></table></div>
+        <div class="card">
+        <h2 class="section-title">iDeCo Performance</h2>
+        <table>
+        <tr><th>Period</th><td>2023-08-03 → 2026-08-13 (3.03 yrs)</td></tr>
+
+        <tr><th>Start</th><td class="key-metric">24,074,680 ¥</td></tr>
+        <tr><th>End</th><td class="key-metric">47,255,428 ¥</td></tr>
+
+        <tr><th>Δ Value</th><td class="key-metric pos">+23,180,748 ¥</td></tr>
+        <tr><th>Total Return</th><td class="key-metric pos">+96.29%</td></tr>
+        <tr><th>CAGR</th><td class="key-metric pos">+24.95%</td></tr>
+        </table>
+        
+        <div class="chart-container" style="height:420px;margin-top:8px">
+            <canvas id="perf_ideco"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("perf_ideco"), {
+            data: { labels: ["2025/09", "2025/10", "2025/11", "2025/12", "2026/01", "2026/02", "2026/03", "2026/04", "2026/05", "2026/06", "2026/07", "2026/08"], datasets: [{"type": "line", "label": "Value", "data": [36421354.0, 39419650.0, 39312922.0, 39754724.0, 39568572.0, 38818998.0, 36542973.0, 43423169.0, 47992592.0, 48186191.0, 45021598.0, 47255428.0], "borderColor": "#2563eb", "backgroundColor": "#2563eb", "borderWidth": 3, "pointRadius": 3, "hoverRadius": 5, "tension": 0, "pointStyle": "circle", "yAxisID": "y"}, {"type": "bar", "label": "Monthly Gain %", "data": [7.56, 12.45, -0.44, 1.84, -0.77, -3.11, -9.45, 28.58, 18.98, 0.8, -13.14, 9.28], "borderColor": "rgba(180,35,24,0.85)", "backgroundColor": "rgba(180,35,24,0.22)", "borderWidth": 1, "categoryPercentage": 0.75, "barPercentage": 0.7, "pointStyle": "rectRounded", "yAxisID": "y1"}, {"type": "line", "label": "Cumulative Gain %", "data": [51.28, 63.74, 63.3, 65.13, 64.36, 61.24, 51.79, 80.37, 99.35, 100.15, 87.01, 96.29], "borderColor": "#b42318", "backgroundColor": "#b42318", "borderWidth": 2, "pointRadius": 3, "hoverRadius": 5, "tension": 0, "pointStyle": "circle", "yAxisID": "y1"}] },
+            options: {
+                responsive:true,
+                maintainAspectRatio:false,
+                interaction:{mode:'index',intersect:false},
+                layout:{padding:{top:18,bottom:12,left:6,right:10}},
+                elements:{bar:{borderRadius:0,borderSkipped:false},line:{tension:0,borderWidth:3},point:{radius:3,hoverRadius:5,hitRadius:12}},
+                plugins:{
+                    legend:{position:'top',align:'start',labels:{usePointStyle:true,boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},
+                    tooltip:{
+                        backgroundColor:'rgba(255,255,255,0.96)',
+                        titleColor:'#344054',
+                        bodyColor:'#344054',
+                        borderColor:'#d7dee8',
+                        borderWidth:1,
+                        padding:12,
+                        displayColors:true,
+                        cornerRadius:12,
+                        callbacks:{
+                            label:function(ctx){
+                                if(ctx.dataset.yAxisID === 'y') return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString()+' ¥';
+                                return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';
+                            }
+                        }
+                    }
+                },
+                scales:{
+                    x:{offset:true,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},
+                    y:{type:'linear',position:'left',min:0,max:50000000,ticks:{stepSize:10000000,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v/1000000).toFixed(0)+'M';}},title:{display:true,text:'Value ¥',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false}},
+                    y1:{type:'linear',position:'right',min:-20,max:110,ticks:{stepSize:10,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(0)+'%';}},title:{display:true,text:'Gain %',color:'#667085',font:{size:11,weight:'400'}},grid:{drawOnChartArea:false},border:{display:false}}
+                }
+            }
+        });
+        </script>
+        
+        </div>
+        
+        <div class="card">
+        <h2 class="section-title">NISA Performance</h2>
+        <table>
+        <tr><th>Period</th><td>2026-05-07 → 2026-08-13 (0.27 yrs)</td></tr>
+
+        <tr><th>Start</th><td class="key-metric">3,030,000 ¥</td></tr>
+        <tr><th>End</th><td class="key-metric">3,084,097 ¥</td></tr>
+
+        <tr><th>Δ Value</th><td class="key-metric pos">+54,097 ¥</td></tr>
+        <tr><th>Total Return</th><td class="key-metric pos">+1.79%</td></tr>
+        <tr><th>CAGR</th><td class="key-metric pos">+6.82%</td></tr>
+        </table>
+        
+        <div class="chart-container" style="height:420px;margin-top:8px">
+            <canvas id="perf_nisa"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("perf_nisa"), {
+            data: { labels: ["2025/09", "2025/10", "2025/11", "2025/12", "2026/01", "2026/02", "2026/03", "2026/04", "2026/05", "2026/06", "2026/07", "2026/08"], datasets: [{"type": "line", "label": "Value", "data": [0, 0, 0, 0, 0, 0, 0, 0, 1108678.0, 2572198.0, 2907792.0, 3084097.0], "borderColor": "#2563eb", "backgroundColor": "#2563eb", "borderWidth": 3, "pointRadius": 3, "hoverRadius": 5, "tension": 0, "pointStyle": "circle", "yAxisID": "y"}, {"type": "bar", "label": "Monthly Gain %", "data": [0, 0, 0, 0, 0, 0, 0, 0, 10.87, 2.65, -9.72, 5.82], "borderColor": "rgba(180,35,24,0.85)", "backgroundColor": "rgba(180,35,24,0.22)", "borderWidth": 1, "categoryPercentage": 0.75, "barPercentage": 0.7, "pointStyle": "rectRounded", "yAxisID": "y1"}, {"type": "line", "label": "Cumulative Gain %", "data": [0, 0, 0, 0, 0, 0, 0, 0, 10.87, 7.17, -4.03, 1.79], "borderColor": "#b42318", "backgroundColor": "#b42318", "borderWidth": 2, "pointRadius": 3, "hoverRadius": 5, "tension": 0, "pointStyle": "circle", "yAxisID": "y1"}] },
+            options: {
+                responsive:true,
+                maintainAspectRatio:false,
+                interaction:{mode:'index',intersect:false},
+                layout:{padding:{top:18,bottom:12,left:6,right:10}},
+                elements:{bar:{borderRadius:0,borderSkipped:false},line:{tension:0,borderWidth:3},point:{radius:3,hoverRadius:5,hitRadius:12}},
+                plugins:{
+                    legend:{position:'top',align:'start',labels:{usePointStyle:true,boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},
+                    tooltip:{
+                        backgroundColor:'rgba(255,255,255,0.96)',
+                        titleColor:'#344054',
+                        bodyColor:'#344054',
+                        borderColor:'#d7dee8',
+                        borderWidth:1,
+                        padding:12,
+                        displayColors:true,
+                        cornerRadius:12,
+                        callbacks:{
+                            label:function(ctx){
+                                if(ctx.dataset.yAxisID === 'y') return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString()+' ¥';
+                                return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';
+                            }
+                        }
+                    }
+                },
+                scales:{
+                    x:{offset:true,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},
+                    y:{type:'linear',position:'left',min:0,max:10000000,ticks:{stepSize:2000000,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v/1000000).toFixed(0)+'M';}},title:{display:true,text:'Value ¥',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false}},
+                    y1:{type:'linear',position:'right',min:-10,max:20,ticks:{stepSize:10,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(0)+'%';}},title:{display:true,text:'Gain %',color:'#667085',font:{size:11,weight:'400'}},grid:{drawOnChartArea:false},border:{display:false}}
+                }
+            }
+        });
+        </script>
+        
+        </div>
+        </details>
+    <details class="private-section"><summary><span class="section-title">Investment Rules (Private)</span></summary>
+    <div class="card">
+    <h2 class="section-title">Investment Rules</h2>
+    <ol class="rule-list">
+        <li>NISAは年間投資枠を基本的に使い切る。主軸はQQQとし、SOXは市場環境・半導体セクターの過熱感・下落余地を見て補助的に使う。</li>
+        <li>特定口座では一度に大きく入れず、原則50万円単位で段階投入する。特定口座の投資額が所定の金額に達したら、NISA年間枠の残額を補填する形でNISA側へ優先配分する。</li>
+        <li>大幅下落時の追加投資に備えて、50万から100万円の待機資金を現金口座とは別枠で確保する。通常の生活資金と投資待機資金は混同しない。</li>
+        <li>現金の追加投入は、待機資金が100万円以上に積み上がった時、または市場に大幅下落が発生した時を基本条件とする。投入先は、リスクを許容できる範囲でNASDAQ100 3x Bullなど高い反発ゲインを期待できる商品を優先候補にする。</li>
+        <li>NISAは長期保有前提の非課税枠として扱い、短期の暴落では売却しない。下落時も保有を継続できる金額だけをNISAへ入れる。</li>
+        <li>追加投資後は、購入タイミング別のゲイン、口座別の資産額、月別ゲイン、累積ゲインを確認し、入金による資産増と運用成果を分けて判断する。</li>
+    </ol>
+    <p class="rule-note">このルールは資産形成の行動基準として使う。市場環境が大きく変わった場合でも、NISA長期保有・待機資金確保・段階投入の原則を先に確認してから変更する。</p>
+    </div>
+    </details>
+    
+        <div class="card">
+        <h2 class="section-title">Daily Performance (2026)</h2>
+        <div class="chart-container">
+            <canvas id="d1"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("d1"), {
+        data: { labels: ["07/30", "07/31", "08/03", "08/04", "08/05", "08/06", "08/07", "08/10", "08/12", "08/13"], datasets: [{"type": "bar", "label": "Rakuten S&P 500", "data": [-1.62, -0.07, -2.38, 2.55, 1.88, -0.02, 0.36, 0.2, 0.51, 0.27], "backgroundColor": "#ffb347", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten QQQ", "data": [-2.16, 1.6, -2.48, 2.84, 3.42, -0.69, 0.15, 0.76, 0.23, 0.74], "backgroundColor": "#4da3ff", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten LN", "data": [-4.17, 6.44, 1.04, 3.4, 6.76, -1.66, -0.87, 2.35, -1.42, 1.54], "backgroundColor": "#c084fc", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten SOX", "data": [-5.37, 6.26, -2.98, 2.12, 6.6, -1.26, 0.86, 2.1, -1.19, 2.46], "backgroundColor": "#ef4444", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "iFreeNEXT FANG+", "data": [-1.8, 1.15, -1.43, 3.92, 4.48, -0.38, 0.46, 1.21, 0.12, -0.56], "backgroundColor": "#14b8a6", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "NASDAQ100 3x Bull", "data": [-6.23, 9.72, 1.75, 5.02, 10.17, -2.5, -1.3, 3.51, -2.09, 2.3], "backgroundColor": "#f97316", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "iFreeNEXT NASDAQ100", "data": [-2.16, 1.59, -2.48, 2.84, 3.42, -0.69, 0.15, 0.76, 0.23, 0.74], "backgroundColor": "#8b5cf6", "categoryPercentage": 0.75, "barPercentage": 0.7}] },
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},layout:{padding:{top:18,bottom:12,left:6,right:10}},elements:{bar:{borderRadius:0,borderSkipped:false}},plugins:{legend:{position:'top',align:'start',labels:{usePointStyle:true,pointStyle:'rectRounded',boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},tooltip:{backgroundColor:'rgba(255,255,255,0.96)',titleColor:'#344054',bodyColor:'#344054',borderColor:'#d7dee8',borderWidth:1,padding:12,displayColors:true,cornerRadius:12,callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';}}}},scales:{x:{offset:true,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},y:{min:-6,max:6,ticks:{stepSize:1,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(0)+'%';}},title:{display:true,text:'Performance (%)',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false}}}}
+        });
+        </script>
+        </div>
+        
+        <div class="card">
+        <h2 class="section-title">Daily Cumulative (2026)</h2>
+        <div class="chart-container">
+            <canvas id="d2"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("d2"), {
+        data: { labels: ["07/30", "07/31", "08/03", "08/04", "08/05", "08/06", "08/07", "08/10", "08/12", "08/13"], datasets: [{"type": "line", "label": "Rakuten S&P 500", "data": [11.46, 11.38, 8.73, 11.49, 13.59, 13.57, 13.98, 14.21, 14.8, 15.11], "borderColor": "#ffb347", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten QQQ", "data": [12.35, 14.14, 11.31, 14.47, 18.38, 17.57, 17.74, 18.64, 18.92, 19.8], "borderColor": "#4da3ff", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten LN", "data": [7.7, 14.64, 15.83, 19.77, 27.87, 25.74, 24.64, 27.58, 25.77, 27.71], "borderColor": "#c084fc", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten SOX", "data": [47.25, 56.47, 51.81, 55.03, 65.26, 63.17, 64.57, 68.02, 66.03, 70.12], "borderColor": "#ef4444", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "iFreeNEXT FANG+", "data": [9.68, 10.94, 9.35, 13.64, 18.73, 18.28, 18.83, 20.27, 20.41, 19.74], "borderColor": "#14b8a6", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "NASDAQ100 3x Bull", "data": [7.98, 18.47, 20.55, 26.6, 39.48, 35.99, 34.22, 38.93, 36.03, 39.16], "borderColor": "#f97316", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "iFreeNEXT NASDAQ100", "data": [12.15, 13.94, 11.11, 14.26, 18.17, 17.36, 17.53, 18.43, 18.7, 19.58], "borderColor": "#8b5cf6", "borderWidth": 2, "tension": 0, "pointRadius": 3}] },
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},layout:{padding:{top:18,bottom:12,left:6,right:10}},elements:{line:{tension:0,borderWidth:3},point:{radius:0,hoverRadius:5,hitRadius:12}},plugins:{legend:{position:'top',align:'start',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},tooltip:{backgroundColor:'rgba(255,255,255,0.96)',titleColor:'#344054',bodyColor:'#344054',borderColor:'#d7dee8',borderWidth:1,padding:12,displayColors:true,cornerRadius:12,callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';}}}},scales:{x:{offset:false,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},y:{title:{display:true,text:'Cumulative (%)',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false},ticks:{color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(1)+'%';}}}}}
+        });
+        </script>
+        </div>
+        
+        <div class="card">
+        <h2 class="section-title">Weekly Performance (2026)</h2>
+        <div class="chart-container">
+            <canvas id="w1"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("w1"), {
+        data: { labels: ["05/25", "06/01", "06/08", "06/15", "06/22", "06/29", "07/06", "07/13", "07/20", "07/27", "08/03", "08/10"], datasets: [{"type": "bar", "label": "Rakuten S&P 500", "data": [1.72, -2.44, 0.27, 0.11, -1.51, 0.09, 0.51, 0.36, 0.28, -3.92, 2.44, 0.27], "backgroundColor": "#ffb347", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten QQQ", "data": [3.18, -4.71, 0.67, 0.37, -3.98, -1.98, 0.42, -0.71, -0.98, -4.09, 3.65, 0.74], "backgroundColor": "#4da3ff", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten LN", "data": [5.76, -10.12, 1.23, -1.02, -8.37, -3.34, 0.53, -1.74, -3.5, 1.1, 6.52, 1.54], "backgroundColor": "#c084fc", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten SOX", "data": [5.47, -5.3, 3.51, 2.53, -9.6, -8.25, 0.47, -3.75, 1.29, -6.85, 8.38, 2.46], "backgroundColor": "#ef4444", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "iFreeNEXT FANG+", "data": [7.08, -8.54, -2.16, 0.59, -3.45, 1.25, 1.61, 0.74, -1.97, -2.93, 5.83, -0.56], "backgroundColor": "#14b8a6", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "NASDAQ100 3x Bull", "data": [8.69, -15.07, 1.6, -1.69, -12.45, -4.99, 0.67, -2.64, -5.36, 1.7, 9.73, 2.3], "backgroundColor": "#f97316", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "iFreeNEXT NASDAQ100", "data": [3.17, -4.71, 0.66, 0.36, -3.99, -1.99, 0.41, -0.72, -0.98, -4.1, 3.64, 0.74], "backgroundColor": "#8b5cf6", "categoryPercentage": 0.75, "barPercentage": 0.7}] },
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},layout:{padding:{top:18,bottom:12,left:6,right:10}},elements:{bar:{borderRadius:0,borderSkipped:false}},plugins:{legend:{position:'top',align:'start',labels:{usePointStyle:true,pointStyle:'rectRounded',boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},tooltip:{backgroundColor:'rgba(255,255,255,0.96)',titleColor:'#344054',bodyColor:'#344054',borderColor:'#d7dee8',borderWidth:1,padding:12,displayColors:true,cornerRadius:12,callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';}}}},scales:{x:{offset:true,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},y:{min:-15,max:15,ticks:{stepSize:5,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(0)+'%';}},title:{display:true,text:'Performance (%)',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false}}}}
+        });
+        </script>
+        </div>
+        
+        <div class="card">
+        <h2 class="section-title">Weekly Cumulative (2026)</h2>
+        <div class="chart-container">
+            <canvas id="w2"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("w2"), {
+        data: { labels: ["05/25", "06/01", "06/08", "06/15", "06/22", "06/29", "07/06", "07/13", "07/20", "07/27", "08/03", "08/10"], datasets: [{"type": "line", "label": "Rakuten S&P 500", "data": [11.54, 9.32, 9.9, 11.93, 9.86, 11.69, 13.47, 13.12, 12.11, 7.83, 13.27, 14.16], "borderColor": "#ffb347", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten QQQ", "data": [20.85, 16.06, 18.64, 22.81, 17.71, 18.44, 20.86, 17.9, 15.08, 10.1, 17.36, 18.5], "borderColor": "#4da3ff", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten LN", "data": [34.54, 22.22, 27.38, 33.69, 21.98, 23.46, 27.38, 20.52, 12.64, 13.16, 24.63, 24.76], "borderColor": "#c084fc", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten SOX", "data": [74.32, 67.11, 82.44, 97.27, 81.96, 74.01, 79.26, 64.6, 64.99, 50.45, 66.52, 68.59], "borderColor": "#ef4444", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "iFreeNEXT FANG+", "data": [18.56, 10.14, 9.39, 15.06, 8.2, 11.62, 15.06, 15.03, 11.2, 8.56, 19.4, 18.87], "borderColor": "#14b8a6", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "NASDAQ100 3x Bull", "data": [53.49, 32.44, 40.51, 50.63, 31.04, 33.19, 39.29, 28.05, 15.62, 16.43, 34.18, 34.4], "borderColor": "#f97316", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "iFreeNEXT NASDAQ100", "data": [20.7, 15.92, 18.48, 22.64, 17.54, 18.26, 20.68, 17.71, 14.89, 9.91, 17.15, 18.29], "borderColor": "#8b5cf6", "borderWidth": 2, "tension": 0, "pointRadius": 3}] },
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},layout:{padding:{top:18,bottom:12,left:6,right:10}},elements:{line:{tension:0,borderWidth:3},point:{radius:0,hoverRadius:5,hitRadius:12}},plugins:{legend:{position:'top',align:'start',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},tooltip:{backgroundColor:'rgba(255,255,255,0.96)',titleColor:'#344054',bodyColor:'#344054',borderColor:'#d7dee8',borderWidth:1,padding:12,displayColors:true,cornerRadius:12,callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';}}}},scales:{x:{offset:false,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},y:{title:{display:true,text:'Cumulative (%)',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false},ticks:{color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(1)+'%';}}}}}
+        });
+        </script>
+        </div>
+        
+        <div class="card">
+        <h2 class="section-title">Monthly Performance (2025–2026)</h2>
+        <div class="chart-container">
+            <canvas id="m1"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("m1"), {
+        data: { labels: ["2025/09", "2025/10", "2025/11", "2025/12", "2026/01", "2026/02", "2026/03", "2026/04", "2026/05", "2026/06", "2026/07", "2026/08"], datasets: [{"type": "bar", "label": "Rakuten S&P 500", "data": [4.32, 6.14, 0.97, 1.35, -0.69, -0.02, -5.72, 10.4, 6.52, 0.05, -2.0, 5.87], "backgroundColor": "#ffb347", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten QQQ", "data": [6.29, 8.45, -1.37, 0.83, 0.31, -1.67, -6.03, 15.62, 11.73, -0.01, -8.31, 7.63], "backgroundColor": "#4da3ff", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten LN", "data": [9.72, 7.77, -6.44, -0.14, 4.64, -4.96, -16.31, 29.96, 20.22, -5.07, -15.0, 10.25], "backgroundColor": "#c084fc", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "Rakuten SOX", "data": [12.41, 17.53, -3.69, 2.7, 10.22, 2.77, -9.79, 36.26, 23.81, 8.8, -21.47, 12.06], "backgroundColor": "#ef4444", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "iFreeNEXT FANG+", "data": [6.83, 8.38, -1.55, -3.69, -3.05, -5.63, -6.52, 18.11, 12.85, -7.02, -0.96, 9.49], "backgroundColor": "#14b8a6", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "NASDAQ100 3x Bull", "data": [14.7, 11.17, -9.95, -0.35, 6.86, -7.61, -23.69, 47.63, 31.31, -8.67, -22.06, 15.43], "backgroundColor": "#f97316", "categoryPercentage": 0.75, "barPercentage": 0.7}, {"type": "bar", "label": "iFreeNEXT NASDAQ100", "data": [6.25, 8.42, -1.4, 0.8, 0.29, -1.69, -6.05, 15.59, 11.7, -0.02, -8.34, 7.63], "backgroundColor": "#8b5cf6", "categoryPercentage": 0.75, "barPercentage": 0.7}] },
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},layout:{padding:{top:18,bottom:12,left:6,right:10}},elements:{bar:{borderRadius:0,borderSkipped:false}},plugins:{legend:{position:'top',align:'start',labels:{usePointStyle:true,pointStyle:'rectRounded',boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},tooltip:{backgroundColor:'rgba(255,255,255,0.96)',titleColor:'#344054',bodyColor:'#344054',borderColor:'#d7dee8',borderWidth:1,padding:12,displayColors:true,cornerRadius:12,callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';}}}},scales:{x:{offset:true,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},y:{min:-25,max:25,ticks:{stepSize:5,color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(0)+'%';}},title:{display:true,text:'Performance (%)',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false}}}}
+        });
+        </script>
+        </div>
+        
+        <div class="card">
+        <h2 class="section-title">Monthly Cumulative (2025–2026)</h2>
+        <div class="chart-container">
+            <canvas id="m2"></canvas>
+        </div>
+        <script>
+        new Chart(document.getElementById("m2"), {
+        data: { labels: ["2025/09", "2025/10", "2025/11", "2025/12", "2026/01", "2026/02", "2026/03", "2026/04", "2026/05", "2026/06", "2026/07", "2026/08"], datasets: [{"type": "line", "label": "Rakuten S&P 500", "data": [6.52, 12.99, 14.8, 16.41, 0.0, 0.61, -5.1, 7.14, 12.96, 13.31, 12.16, 15.92], "borderColor": "#ffb347", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten QQQ", "data": [10.66, 19.76, 19.44, 20.78, 0.0, -1.89, -7.65, 9.74, 21.29, 21.78, 13.78, 19.43], "borderColor": "#4da3ff", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten LN", "data": [17.73, 27.51, 21.39, 22.92, 0.0, -7.41, -22.99, 6.75, 30.78, 24.93, 9.55, 22.04], "borderColor": "#c084fc", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "Rakuten SOX", "data": [21.2, 42.98, 39.05, 44.66, 0.0, -0.08, -10.52, 28.63, 59.53, 73.63, 41.96, 54.35], "borderColor": "#ef4444", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "iFreeNEXT FANG+", "data": [15.01, 23.93, 23.14, 19.05, 0.0, -5.47, -11.05, 9.29, 20.8, 14.53, 14.43, 23.5], "borderColor": "#14b8a6", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "NASDAQ100 3x Bull", "data": [21.12, 35.68, 25.29, 27.47, 0.0, -11.17, -32.84, 9.07, 47.31, 35.83, 10.87, 30.22], "borderColor": "#f97316", "borderWidth": 2, "tension": 0, "pointRadius": 3}, {"type": "line", "label": "iFreeNEXT NASDAQ100", "data": [10.42, 19.47, 19.12, 20.43, 0.0, -1.92, -7.69, 9.66, 21.17, 21.63, 13.61, 19.24], "borderColor": "#8b5cf6", "borderWidth": 2, "tension": 0, "pointRadius": 3}] },
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},layout:{padding:{top:18,bottom:12,left:6,right:10}},elements:{line:{tension:0,borderWidth:3},point:{radius:0,hoverRadius:5,hitRadius:12}},plugins:{legend:{position:'top',align:'start',labels:{usePointStyle:true,pointStyle:'circle',boxWidth:10,color:'#667085',font:{size:12,weight:'400'},padding:16}},tooltip:{backgroundColor:'rgba(255,255,255,0.96)',titleColor:'#344054',bodyColor:'#344054',borderColor:'#d7dee8',borderWidth:1,padding:12,displayColors:true,cornerRadius:12,callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.parsed.y>0?'+':'')+ctx.parsed.y.toFixed(2)+'%';}}}},scales:{x:{offset:false,grid:{display:false,drawBorder:false},border:{display:false},ticks:{autoSkip:false,maxRotation:0,minRotation:0,color:'#98a2b3',font:{size:11,weight:'400'}}},y:{title:{display:true,text:'Cumulative (%)',color:'#667085',font:{size:11,weight:'400'}},grid:{display:true,color:'#edf2f7',lineWidth:1},border:{display:false},ticks:{color:'#98a2b3',font:{size:11,weight:'400'},callback:function(v){return (v>0?'+':'')+v.toFixed(1)+'%';}}}}}
+        });
+        </script>
+        </div>
+        </body></html>
