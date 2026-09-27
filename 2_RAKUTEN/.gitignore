@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+holdings.private.json
+.venv/
+.logs/
+.rakuten-update.lock
+holdings_reconciliation.json

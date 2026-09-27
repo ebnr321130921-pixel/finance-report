@@ -33,6 +33,7 @@ error so a requested product cannot be silently skipped.
 - `fund_master.json`: Product and broker master. Add or disable products here.
 - `holdings_input.csv`: Local holding input. Edit this for normal operation.
 - `holdings.json`: Legacy/private holding JSON fallback.
+- `holdings_reconciliation.json`: Local user-reported balance and withdrawal record, including holdings before adjustment. Not a market-price source or part of the default publish set.
 - `daily_records.json`: Normalized market time series cache.
 - `dashboard.html`: Viewer output.
 - `rakuten_update.py`: Single Python entry point for fetch, backfill, shaping, and HTML generation.
@@ -60,10 +61,56 @@ python rakuten_update.py --backfill <short name> --skip-latest
 
 `rakuten_update.py` is the stable execution entry point.
 
+### 2026-09-27 holding adjustment
+
+iFreeNASDAQ100 was reduced from 116,303 to 50,436 units after a reported
+380,000 yen withdrawal. Its remaining `change_value` is provisionally allocated
+as `630000 * 50436 / 116303`, rather than treating the withdrawal as a loss.
+iDeCo units were updated to 24,833,799; the contribution amount is unknown,
+so its original principal was retained. SOX and Rakuten QQQ NISA units match
+the existing lots. The reported balances and original inputs are preserved in
+`holdings_reconciliation.json`; valuation and transaction dates are unconfirmed.
+The viewer continues to use fetched NAV, not the reported balance amounts.
+Its historical account charts apply current holdings to past prices and are
+not cash-flow-adjusted realized performance.
+
 ## Publish Local Holdings To GitHub
 
-This folder is not auto-pushed from the local machine. After local purchase-lot
-maintenance, publish the selected Rakuten files explicitly:
+### ダブルクリックでフォルダを更新
+
+Finderで **`楽天をGitHubへ更新.command`** をダブルクリックします。
+現在のローカルフォルダを `ebnr321130921-pixel/finance-report` の
+`main` ブランチ、`2_RAKUTEN/` に反映します。価格取得は行いません。
+価格も更新したい場合は、先に通常どおり `rakuten_update.py` を実行してください。
+
+初回だけ、GitHub認証がなければTerminal内でトークン登録を案内します。
+[GitHubのトークン作成画面](https://github.com/settings/personal-access-tokens/new)で
+対象リポジトリを `finance-report`、Repository permissionsのContentsを
+`Read and write` にして作成し、password欄へ貼り付けます。
+認証情報はMacのキーチェーンに保存し、2回目から再利用します。
+既存の `GITHUB_TOKEN` / `GH_TOKEN`、またはGitHub CLIの認証も利用できます。
+トークン更新時は「キーチェーンアクセス」で `rakuten-github-publisher` の
+対象リポジトリの項目を削除し、再実行してください。
+
+コード、保有データ、`daily_records.json`、`dashboard.html`、サブフォルダ内の
+ファイルも対象です。`.venv`、キャッシュ、ログ、認証ファイル、ローカル用の
+`holdings.private.json` / `holdings_reconciliation.json` は除外します。
+GitHub側のフォルダを先に削除する必要はありません。同名ファイルを更新し、
+新規ファイルを追加します。ローカルにないGitHub上のファイルは削除しません。
+GitHub通信にはPython環境付属のCA証明書を明示的に使用するため、macOS上の
+Pythonでシステム証明書が見つからない場合でも接続できます。
+変更のあったファイルを1コミットで反映し、変更がなければコミットを作りません。
+送信中にGitHub側が更新された場合は強制上書きせず停止するので、再実行してください。
+この動作はGitHubの[Git Trees API](https://docs.github.com/en/rest/git/trees)と
+[References API](https://docs.github.com/en/rest/git/refs)を使用します。
+
+結果とエラーはTerminalに表示し、`.logs/` に保存します。
+送信なしの確認は `./楽天をGitHubへ更新.command --dry-run` で実行できます。
+任意で `--refresh` を付けると価格取得・画面生成後に送信します。
+
+### コマンドから選択ファイルを送信
+
+従来の選択ファイル送信も利用できます:
 
 ```bash
 python publish_rakuten_to_github.py
