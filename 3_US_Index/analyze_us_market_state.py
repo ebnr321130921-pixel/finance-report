@@ -31,7 +31,7 @@ REG_DATA_PATH = DATA_DIR / "market_regression_dataset.csv"
 # CONFIG
 # =========================================================
 RET_COLS = [
-    "QQQ", "SP500", "NASDAQ", "DOW",
+    "QQQ", "SOX", "SP500", "NASDAQ", "DOW",
     "VIX", "US10Y", "USDJPY", "GOLD", "TLT"
 ]
 
@@ -144,16 +144,26 @@ def forward_return_sum(price: pd.Series, start_offset: int, length: int) -> pd.S
     return ret.shift(-(start_offset + length - 1)).rolling(length).sum()
 
 
+# Daily timing targets: each future US trading day's standalone return.
+for asset in ["QQQ", "SOX", "SP500"]:
+    for day in range(1, 11):
+        feat[f"{asset}_D{day}_FWD"] = forward_return_sum(
+            df[asset], start_offset=day, length=1
+        )
+
+
 # =========================================================
 # 1W FORWARD : t+5 ~ t+9 (5 trading days)
 # =========================================================
 feat["QQQ_1W_FWD_SUM"] = forward_return_sum(df["QQQ"], start_offset=5, length=5)
+feat["SOX_1W_FWD_SUM"] = forward_return_sum(df["SOX"], start_offset=5, length=5)
 feat["SP500_1W_FWD_SUM"] = forward_return_sum(df["SP500"], start_offset=5, length=5)
 
 # =========================================================
 # 1M FORWARD : t+20 ~ t+39 (20 trading days)
 # =========================================================
 feat["QQQ_1M_FWD_SUM"] = forward_return_sum(df["QQQ"], start_offset=20, length=20)
+feat["SOX_1M_FWD_SUM"] = forward_return_sum(df["SOX"], start_offset=20, length=20)
 feat["SP500_1M_FWD_SUM"] = forward_return_sum(df["SP500"], start_offset=20, length=20)
 
 # =========================================================
@@ -161,6 +171,9 @@ feat["SP500_1M_FWD_SUM"] = forward_return_sum(df["SP500"], start_offset=20, leng
 # =========================================================
 feat["QQQ_6M_FWD_SUM"] = forward_return_sum(
     df["QQQ"], start_offset=1, length=TRADING_DAYS_6M
+)
+feat["SOX_6M_FWD_SUM"] = forward_return_sum(
+    df["SOX"], start_offset=1, length=TRADING_DAYS_6M
 )
 feat["SP500_6M_FWD_SUM"] = forward_return_sum(
     df["SP500"], start_offset=1, length=TRADING_DAYS_6M
@@ -183,6 +196,11 @@ feat["RET_SP500_20D"] = df["SP500"].pct_change(20)
 feat["dQQQ_D"] = df["QQQ"].pct_change(1)
 feat["dQQQ_W"] = df["QQQ"].pct_change(5)
 feat["dQQQ_M"] = df["QQQ"].pct_change(20)
+
+feat["RET_SOX_20D"] = df["SOX"].pct_change(20)
+feat["dSOX_D"] = df["SOX"].pct_change(1)
+feat["dSOX_W"] = df["SOX"].pct_change(5)
+feat["dSOX_M"] = df["SOX"].pct_change(20)
 
 feat["dSP500_D"] = df["SP500"].pct_change(1)
 feat["dSP500_W"] = df["SP500"].pct_change(5)
@@ -255,24 +273,21 @@ reg_df = feat.drop(columns=["Regime"], errors="ignore")
 X = reg_df.select_dtypes(include=[np.number])
 
 TARGET_COLS = [
+    *[f"{asset}_D{day}_FWD" for asset in ["QQQ", "SOX", "SP500"] for day in range(1, 11)],
     # 1W
     "QQQ_1W_FWD_SUM",
+    "SOX_1W_FWD_SUM",
     "SP500_1W_FWD_SUM",
 
     # 1M
     "QQQ_1M_FWD_SUM",
+    "SOX_1M_FWD_SUM",
     "SP500_1M_FWD_SUM",
 
     # 6M
     "QQQ_6M_FWD_SUM",
+    "SOX_6M_FWD_SUM",
     "SP500_6M_FWD_SUM",
-]
-
-BASE_TRAIN_TARGET_COLS = [
-    "QQQ_1W_FWD_SUM",
-    "SP500_1W_FWD_SUM",
-    "QQQ_1M_FWD_SUM",
-    "SP500_1M_FWD_SUM",
 ]
 
 # ---------------------------------------------------------
@@ -284,14 +299,12 @@ reg_base = pd.concat(
 )
 
 # ---------------------------------------------------------
-# TRAIN DATASET（回帰分析用：目的変数が揃った行のみ）
-#  → 既存コード互換
+# TRAIN DATASET
+# Target availability differs by horizon.  Do not globally discard rows just
+# because another target (notably 1M) has not matured yet; run_regression()
+# applies the target-specific as-of filter.
 # ---------------------------------------------------------
-train_df = (
-    reg_base
-    .dropna(subset=BASE_TRAIN_TARGET_COLS)
-    .reset_index(drop=True)
-)
+train_df = reg_base.reset_index(drop=True)
 
 # ===== CSV 出力は廃止 =====
 # train_df / reg_base をそのまま返す

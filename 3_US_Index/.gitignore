@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+.logs/
+*.tmp
+data/*.legacy_pre_walk_forward.csv

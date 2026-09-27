@@ -46,6 +46,10 @@ Display only (NO recalculation)
 =========================================================
 """
 
+from runtime_bootstrap import ensure_runtime
+
+ensure_runtime(("pandas",))
+
 import pandas as pd
 from pathlib import Path
 
@@ -73,7 +77,7 @@ OUT_HTML = BASE_DIR / "us_index.html"
 summary = pd.read_csv(SUMMARY_TABLE_PATH)
 summary.columns = [c.strip() for c in summary.columns]
 
-INDEX_ITEMS = ["QQQ", "SP500", "NASDAQ", "DOW", "VIX", "US10Y", "USDJPY"]
+INDEX_ITEMS = ["QQQ", "SOX", "SP500", "NASDAQ", "DOW", "VIX", "US10Y", "USDJPY"]
 
 
 summary.columns = [c.strip() for c in summary.columns]
@@ -98,7 +102,7 @@ COL_DAY_P  = find_col(["yesterday"], percent=True)
 COL_WEEK   = find_col(["lastweek"], percent=False)
 COL_WEEK_P = find_col(["lastweek"], percent=True)
 
-INDEX_ITEMS = ["QQQ", "SP500", "NASDAQ", "DOW", "VIX", "US10Y", "USDJPY"]
+INDEX_ITEMS = ["QQQ", "SOX", "SP500", "NASDAQ", "DOW", "VIX", "US10Y", "USDJPY"]
 perf = summary[summary[COL_ITEM].isin(INDEX_ITEMS)].copy()
 
 perf["Index"] = perf[COL_ITEM]
@@ -586,7 +590,7 @@ if FORECAST_TODAY_PATH.exists():
     fdf = pd.read_csv(FORECAST_TODAY_PATH)
 
     rows = []
-    for asset in ["QQQ", "SP500"]:
+    for asset in ["QQQ", "SOX", "SP500"]:
         sub = fdf[fdf["asset"] == asset]
 
         for h in ["1W", "1M", "6M"]:
@@ -667,6 +671,16 @@ if DECISION_CUR_PATH.exists():
         </tr>
         """)
 
+    if not rows:
+        rows.append("""
+        <tr>
+          <td colspan="5" class="soft">
+            Point-in-time forecast history is accumulating. Shock statistics
+            will appear after enough realized observations are available.
+          </td>
+        </tr>
+        """)
+
     decision_html = f"""
     <div class="card">
     <h2>Market Decision (Shock)</h2>
@@ -721,7 +735,7 @@ if EVAL_PATH.exists():
     rows = []
     order = {"1W": 0, "1M": 1, "6M": 2}
 
-    for asset in ["QQQ", "SP500"]:
+    for asset in ["QQQ", "SOX", "SP500"]:
         sub = (
             edf.loc[edf["asset"] == asset]
                .assign(_o=lambda x: x["forecast_horizon"].map(order))
@@ -918,6 +932,9 @@ if TREND_PATH.exists():
             // QQQ：水色・実線（← ここ重要）
             {label:'QQQ', data:__QQQ_W_DATA__, borderColor:'#5ac8fa', borderWidth:1},
 
+            // SOX：紫・実線
+            {label:'SOX', data:__SOX_W_DATA__, borderColor:'#af52de', borderWidth:1},
+
             // SP500：ピンク・実線
             {label:'SP500', data:__SP_W_DATA__, borderColor:'#ff9bb0', borderWidth:1},
 
@@ -963,6 +980,9 @@ if TREND_PATH.exists():
           [
             // QQQ：水色・実線
             {label:'QQQ', data:__QQQ_M_DATA__, borderColor:'#5ac8fa', borderWidth:1},
+
+            // SOX：紫・実線
+            {label:'SOX', data:__SOX_M_DATA__, borderColor:'#af52de', borderWidth:1},
 
             // SP500：ピンク・実線
             {label:'SP500', data:__SP_M_DATA__, borderColor:'#ff9bb0', borderWidth:1},
@@ -1020,8 +1040,10 @@ if TREND_PATH.exists():
             decision_chart_tpl
             .replace("__LABELS__", labels)
             .replace("__QQQ_W_DATA__", js_arr(cdf_sync.get("QQQ_1W_shock_score", empty_threshold)))
+            .replace("__SOX_W_DATA__", js_arr(cdf_sync.get("SOX_1W_shock_score", empty_threshold)))
             .replace("__SP_W_DATA__",  js_arr(cdf_sync.get("SP_1W_shock_score", empty_threshold)))
             .replace("__QQQ_M_DATA__", js_arr(cdf_sync.get("QQQ_1M_shock_score", empty_threshold)))
+            .replace("__SOX_M_DATA__", js_arr(cdf_sync.get("SOX_1M_shock_score", empty_threshold)))
             .replace("__SP_M_DATA__",  js_arr(cdf_sync.get("SP_1M_shock_score", empty_threshold)))
 
             # --- Weekly thresholds ---
@@ -1041,6 +1063,8 @@ if TREND_PATH.exists():
     forecast_trend_html = f"""
         <h3 class="soft">QQQ</h3>
         <canvas id="trendQQQ" height="260"></canvas>
+        <h3 class="soft">SOX</h3>
+        <canvas id="trendSOX" height="260"></canvas>
         <h3 class="soft">SP500</h3>
         <canvas id="trendSP" height="260"></canvas>
 
@@ -1050,6 +1074,8 @@ if TREND_PATH.exists():
         // QQQ / SP500 の予測・実績すべてを基準にオートスケール
         const QQQ_PRED_1M = {js_array(trend_col("qqq_pred_1m_cum"))};
         const QQQ_ACTUAL_1M = {js_array(trend_col("qqq_actual_1m_cum"))};
+        const SOX_PRED_1M = {js_array(trend_col("sox_pred_1m_cum"))};
+        const SOX_ACTUAL_1M = {js_array(trend_col("sox_actual_1m_cum"))};
         const SP_PRED_1M = {js_array(trend_col("sp_pred_1m_cum"))};
         const SP_ACTUAL_1M = {js_array(trend_col("sp_actual_1m_cum"))};
 
@@ -1087,7 +1113,7 @@ if TREND_PATH.exists():
           }};
         }}
 
-        const forecastY = calcSharedY([QQQ_PRED_1M, QQQ_ACTUAL_1M, SP_PRED_1M, SP_ACTUAL_1M]);
+        const forecastY = calcSharedY([QQQ_PRED_1M, QQQ_ACTUAL_1M, SOX_PRED_1M, SOX_ACTUAL_1M, SP_PRED_1M, SP_ACTUAL_1M]);
 
         const sharedY = {{
           min: forecastY.min,
@@ -1137,12 +1163,75 @@ if TREND_PATH.exists():
         );
 
         buildTrend(
+          'trendSOX',
+          SOX_PRED_1M,
+          SOX_ACTUAL_1M
+        );
+
+        buildTrend(
           'trendSP',
           SP_PRED_1M,
           SP_ACTUAL_1M
         );
     </script>
 
+    """
+
+# =========================================================
+# Daily Forecast Trend (last week through next two weeks)
+# =========================================================
+DAILY_TREND_PATH = DATA_DIR / "forecast_trend_daily.csv"
+daily_trend_html = ""
+if DAILY_TREND_PATH.exists():
+    daily_df = pd.read_csv(DAILY_TREND_PATH)
+    daily_df["date"] = pd.to_datetime(daily_df["date"])
+    daily_dates = sorted(daily_df["date"].dropna().unique())
+    daily_labels = "[" + ",".join(
+        f"'{pd.Timestamp(d).strftime('%m-%d')}'" for d in daily_dates
+    ) + "]"
+
+    def daily_values(asset, column):
+        series = (
+            daily_df[daily_df["asset"] == asset]
+            .set_index("date")[column]
+            .reindex(pd.DatetimeIndex(daily_dates))
+        )
+        return "[" + ",".join(
+            "null" if pd.isna(v) else f"{float(v) * 100:.2f}" for v in series
+        ) + "]"
+
+    daily_canvases = "".join(
+        f'<h3 class="soft">{asset}</h3><canvas id="daily{asset}" height="220"></canvas>'
+        for asset in ["QQQ", "SOX", "SP500"]
+    )
+    daily_calls = "\n".join(
+        f"buildDaily('daily{asset}', {daily_values(asset, 'actual_return')}, {daily_values(asset, 'predicted_return')});"
+        for asset in ["QQQ", "SOX", "SP500"]
+    )
+
+    daily_trend_html = f"""
+    {daily_canvases}
+    <script>
+    const dailyLabels = {daily_labels};
+    function buildDaily(id, actual, forecast) {{
+      new Chart(document.getElementById(id), {{
+        type: 'bar',
+        data: {{ labels: dailyLabels, datasets: [
+          {{ label: 'Actual daily return', data: actual, backgroundColor: '#8e8e93' }},
+          {{ label: 'Forecast daily return', data: forecast,
+             backgroundColor: forecast.map(v => v === null ? 'transparent' : (v >= 0 ? '#5ac8fa' : '#ff9bb0')) }}
+        ]}},
+        options: {{ responsive: true,
+          scales: {{
+            y: {{ title: {{ display: true, text: 'Daily Return (%)' }}, ticks: {{ callback: v => v + '%' }} }},
+            x: {{ ticks: {{ minRotation: 45, maxRotation: 45 }} }}
+          }},
+          plugins: {{ legend: {{ position: 'bottom' }} }}
+        }}
+      }});
+    }}
+    {daily_calls}
+    </script>
     """
 
 # =========================================================
@@ -1465,6 +1554,8 @@ for _, r in perf.iterrows())}
 <summary>Forecast Trend (1M / Weekly)</summary>
 <div class="inner">
 {forecast_trend_html}
+<h2>Daily Timing (Last Week → Next 2 Weeks)</h2>
+{daily_trend_html}
 </div>
 </details>
 </div>

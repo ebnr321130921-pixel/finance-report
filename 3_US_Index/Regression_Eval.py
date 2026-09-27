@@ -14,6 +14,7 @@ Regression Evaluation & Forecast Pipeline (3Y FIXED)
 
 import pandas as pd
 import numpy as np
+import shutil
 from pathlib import Path
 import statsmodels.api as sm
 from pandas.tseries.offsets import CustomBusinessDay
@@ -33,6 +34,22 @@ DATA_DIR.mkdir(exist_ok=True)
 
 # REG_DATA_PATH は廃止（in-memory 運用）
 RAW_DATA_PATH  = DATA_DIR / "market_factors_raw.csv"
+MODEL_VERSION = "walk_forward_v2"
+
+
+def select_feature_columns(df, target_columns):
+    """Return a stable, estimable feature set.
+
+    The old model fed hundreds of high-order interaction terms to unregularized
+    OLS with only roughly 600-700 observations.  Keep the directly observable
+    features and remove one dummy from each categorical group to avoid the
+    dummy-variable trap.
+    """
+    excluded = {"date", *target_columns, "m_12", "wd_4"}
+    return [
+        c for c in df.columns
+        if c not in excluded and "_x_" not in c
+    ]
 
 # =========================================================
 # LOAD DATA (REGRESSION)
@@ -55,15 +72,19 @@ def run_regression(train_df, predict_df, raw_df):
         "QQQ_1W_FWD_SUM": "QQQ_1W_FWD_SUM",
         "QQQ_1M_FWD_SUM": "QQQ_1M_FWD_SUM",
         "QQQ_6M_FWD_SUM": "QQQ_6M_FWD_SUM",
+        "SOX_1W_FWD_SUM": "SOX_1W_FWD_SUM",
+        "SOX_1M_FWD_SUM": "SOX_1M_FWD_SUM",
+        "SOX_6M_FWD_SUM": "SOX_6M_FWD_SUM",
         "SP500_1W_FWD_SUM": "SP500_1W_FWD_SUM",
         "SP500_1M_FWD_SUM": "SP500_1M_FWD_SUM",
         "SP500_6M_FWD_SUM": "SP500_6M_FWD_SUM",
     }
+    TARGETS.update({
+        f"{asset}_D{day}_FWD": f"{asset}_D{day}_FWD"
+        for asset in ["QQQ", "SOX", "SP500"] for day in range(1, 11)
+    })
 
-    FEATURE_COLS = [
-        c for c in df.columns
-        if c not in ["date"] + list(TARGETS.values())
-    ]
+    FEATURE_COLS = select_feature_columns(df, TARGETS.values())
 
     df[FEATURE_COLS] = df[FEATURE_COLS].apply(pd.to_numeric, errors="coerce")
     for t in TARGETS.values():
@@ -90,12 +111,19 @@ def run_regression(train_df, predict_df, raw_df):
         "QQQ_1W_FWD_SUM": "QQQ_1W_FWD_SUM",
         "QQQ_1M_FWD_SUM": "QQQ_1M_FWD_SUM",
         "QQQ_6M_FWD_SUM": "QQQ_6M_FWD_SUM",
+        "SOX_1W_FWD_SUM": "SOX_1W_FWD_SUM",
+        "SOX_1M_FWD_SUM": "SOX_1M_FWD_SUM",
+        "SOX_6M_FWD_SUM": "SOX_6M_FWD_SUM",
         "SP500_1W_FWD_SUM": "SP500_1W_FWD_SUM",
         "SP500_1M_FWD_SUM": "SP500_1M_FWD_SUM",
         "SP500_6M_FWD_SUM": "SP500_6M_FWD_SUM",
     }
+    TARGETS.update({
+        f"{asset}_D{day}_FWD": f"{asset}_D{day}_FWD"
+        for asset in ["QQQ", "SOX", "SP500"] for day in range(1, 11)
+    })
 
-    FEATURE_COLS = [c for c in df.columns if c not in ["date"] + list(TARGETS.values())]
+    FEATURE_COLS = select_feature_columns(df, TARGETS.values())
 
     df[FEATURE_COLS] = df[FEATURE_COLS].apply(pd.to_numeric, errors="coerce")
     for t in TARGETS.values():
@@ -154,12 +182,29 @@ def run_regression(train_df, predict_df, raw_df):
             pd.to_numeric, errors="coerce"
         )
 
+        latest_features = predict_df.sort_values("date")[FEATURE_COLS].iloc[[-1]]
+        if latest_features.isna().any(axis=None):
+            missing_latest = latest_features.columns[latest_features.isna().iloc[0]].tolist()
+            raise RuntimeError(
+                f"Latest feature row is incomplete for {label}: "
+                + ", ".join(missing_latest)
+            )
+
         latest_X = sm.add_constant(
-            predict_df.sort_values("date")[FEATURE_COLS].iloc[[-1]],
+            latest_features,
             has_constant="add"
         )
 
-        point_pred = float(model.predict(latest_X).iloc[0])
+        # OLS can extrapolate far outside the observed return distribution.
+        # Bound every horizon to its training-period central range; the old
+        # implementation bounded daily predictions only and still emitted
+        # implausible double-digit weekly forecasts.
+        prediction_lower = float(y.quantile(0.05))
+        prediction_upper = float(y.quantile(0.95))
+        raw_point_pred = float(model.predict(latest_X).iloc[0])
+        point_pred = float(np.clip(
+            raw_point_pred, prediction_lower, prediction_upper
+        ))
 
         results[label] = {
             "model": model,
@@ -169,6 +214,8 @@ def run_regression(train_df, predict_df, raw_df):
             "AIC": float(model.aic),
             "BIC": float(model.bic),
             "point_prediction": point_pred,
+            "prediction_lower": prediction_lower,
+            "prediction_upper": prediction_upper,
         }
 
         print(
@@ -207,6 +254,9 @@ def run_regression(train_df, predict_df, raw_df):
             "p_value": m.pvalues.values,
             "t_value": m.tvalues.values,
         }))
+
+    if not coef_rows:
+        raise RuntimeError("No regression model could be fitted")
 
     pd.concat(coef_rows, ignore_index=True).to_csv(
         DATA_DIR / "regression_coefficients_latest.csv",
@@ -262,6 +312,7 @@ def run_regression(train_df, predict_df, raw_df):
         p_values = m.pvalues.drop("const", errors="ignore")
 
         return {
+            "model_version": MODEL_VERSION,
             "as_of_date": as_of_date,
             "target": target,
             "horizon": horizon,
@@ -292,32 +343,74 @@ def run_regression(train_df, predict_df, raw_df):
         ("QQQ", "1W", "QQQ_1W_FWD_SUM", 5, 5),
         ("QQQ", "1M", "QQQ_1M_FWD_SUM", 20, 20),
         ("QQQ", "6M", "QQQ_6M_FWD_SUM", 1, 126),
+        ("SOX", "1W", "SOX_1W_FWD_SUM", 5, 5),
+        ("SOX", "1M", "SOX_1M_FWD_SUM", 20, 20),
+        ("SOX", "6M", "SOX_6M_FWD_SUM", 1, 126),
         ("SP500", "1W", "SP500_1W_FWD_SUM", 5, 5),
         ("SP500", "1M", "SP500_1M_FWD_SUM", 20, 20),
         ("SP500", "6M", "SP500_6M_FWD_SUM", 1, 126),
     ]
 
-    for _, pred_row in predict_work.iterrows():
-        if pred_row[FEATURE_COLS].isna().any():
-            continue
+    # Production forecasts are immutable point-in-time records.  Only the
+    # latest row is forecast here; applying today's fitted model to every past
+    # row would leak future information into the historical evaluation.
+    valid_predict = predict_work.dropna(subset=FEATURE_COLS)
+    if valid_predict.empty:
+        raise RuntimeError("No complete feature row is available for prediction")
 
-        as_of_date = pd.Timestamp(pred_row["date"]).normalize()
-        latest_X = sm.add_constant(
-            pd.DataFrame([pred_row[FEATURE_COLS]], columns=FEATURE_COLS),
-            has_constant="add"
+    pred_row = valid_predict.iloc[-1]
+    as_of_date = pd.Timestamp(pred_row["date"]).normalize()
+    if as_of_date != data_date:
+        raise RuntimeError(
+            f"Latest complete feature date {as_of_date.date()} does not match "
+            f"raw data date {data_date.date()}"
         )
 
-        for target, horizon, key, start_offset, length in target_meta:
-            if key not in results:
-                continue
-            start_date, end_date = period_for(as_of_date, start_offset, length)
-            pred_sum = float(results[key]["model"].predict(latest_X).iloc[0])
-            log_rows.append(
-                row_for(as_of_date, target, horizon, start_date, end_date, key, pred_sum)
-            )
+    latest_X = sm.add_constant(
+        pd.DataFrame([pred_row[FEATURE_COLS]], columns=FEATURE_COLS),
+        has_constant="add"
+    )
 
+    for target, horizon, key, start_offset, length in target_meta:
+        if key not in results:
+            continue
+        start_date, end_date = period_for(as_of_date, start_offset, length)
+        raw_pred = float(results[key]["model"].predict(latest_X).iloc[0])
+        pred_sum = float(np.clip(
+            raw_pred,
+            results[key]["prediction_lower"],
+            results[key]["prediction_upper"],
+        ))
+        log_rows.append(
+            row_for(as_of_date, target, horizon, start_date, end_date, key, pred_sum)
+        )
+
+    new_log = pd.DataFrame(log_rows)
+
+    # The pre-v2 file was reconstructed on every run with a model trained on
+    # future data.  Preserve it for audit, but never mix it into valid results.
+    existing = pd.DataFrame()
+    if LOG_PATH.exists():
+        old = pd.read_csv(LOG_PATH)
+        if "model_version" in old.columns:
+            old = old[old["model_version"] == MODEL_VERSION].copy()
+            for c in ["as_of_date", "start_date", "end_date"]:
+                old[c] = pd.to_datetime(old[c])
+            existing = old
+        else:
+            legacy_path = LOG_PATH.with_name(
+                LOG_PATH.stem + ".legacy_pre_walk_forward.csv"
+            )
+            if not legacy_path.exists():
+                shutil.copy2(LOG_PATH, legacy_path)
+
+    merged = pd.concat([existing, new_log], ignore_index=True)
     merged = (
-        pd.DataFrame(log_rows)
+        merged
+        .drop_duplicates(
+            subset=["model_version", "as_of_date", "target", "horizon"],
+            keep="first",
+        )
         .sort_values(["as_of_date", "target", "horizon"])
         .reset_index(drop=True)
     )
@@ -337,10 +430,8 @@ def run_regression(train_df, predict_df, raw_df):
         target = row["target"]
 
         # 対象列
-        if target == "QQQ":
-            col = "QQQ"
-        elif target == "SP500":
-            col = "SP500"
+        if target in ["QQQ", "SOX", "SP500"]:
+            col = target
         else:
             return np.nan
 
@@ -400,7 +491,7 @@ def run_regression(train_df, predict_df, raw_df):
 
     compare_today = merged[
         (merged["end_date"] == actual_date) &
-        (merged["target"].isin(["QQQ", "SP500"])) &
+        (merged["target"].isin(["QQQ", "SOX", "SP500"])) &
         (merged["horizon"].isin(["1W", "1M", "6M"])) &
         (merged["actual_sum"].notna())
     ].copy()
@@ -453,7 +544,7 @@ def run_regression(train_df, predict_df, raw_df):
     TREND_PATH = DATA_DIR / "forecast_trend_weekly.csv"
 
     trend_src = merged[
-        (merged["target"].isin(["QQQ", "SP500"])) &
+        (merged["target"].isin(["QQQ", "SOX", "SP500"])) &
         (merged["horizon"].isin(["1W", "1M", "6M"]))
     ].copy()
 
@@ -570,25 +661,25 @@ def run_regression(train_df, predict_df, raw_df):
         prefix="qqq"
     )
 
+    sox_block = build_asset_block(
+        trend_src[trend_src["target"] == "SOX"],
+        prefix="sox"
+    )
+
     sp_block = build_asset_block(
         trend_src[trend_src["target"] == "SP500"],
         prefix="sp"
     )
 
     # --- guard ---
-    if qqq_block is None and sp_block is None:
+    blocks = [b for b in [qqq_block, sox_block, sp_block] if b is not None]
+    if not blocks:
         trend_out = pd.DataFrame(columns=["week"])
-    elif qqq_block is None:
-        trend_out = sp_block.reset_index().sort_values("week")
-    elif sp_block is None:
-        trend_out = qqq_block.reset_index().sort_values("week")
     else:
-        trend_out = (
-            qqq_block
-            .join(sp_block, how="outer")
-            .reset_index()
-            .sort_values("week")
-        )
+        combined = blocks[0]
+        for block in blocks[1:]:
+            combined = combined.join(block, how="outer")
+        trend_out = combined.reset_index().sort_values("week")
 
     # =========================================================
     # column order (FIXED)
@@ -616,6 +707,13 @@ def run_regression(train_df, predict_df, raw_df):
         "qqq_pred_6m",
         "qqq_actual_6m",
 
+        # --- SOX ---
+        "sox_pred_1w", "sox_pred_1w_cum", "sox_pred_1w_cum_nrst",
+        "sox_actual_1w", "sox_actual_1w_cum", "sox_actual_1w_cum_nrst",
+        "sox_pred_1m", "sox_pred_1m_cum", "sox_pred_1m_cum_nrst",
+        "sox_actual_1m", "sox_actual_1m_cum", "sox_actual_1m_cum_nrst",
+        "sox_pred_6m", "sox_actual_6m",
+
         # --- SP ---
         "sp_pred_1w",
         "sp_pred_1w_cum",
@@ -638,10 +736,13 @@ def run_regression(train_df, predict_df, raw_df):
     ]
 
 
-    # --- guard: 実在する列のみ使用 ---
-    existing_cols = [c for c in EXPECTED_COLS if c in trend_out.columns]
-
-    trend_out = trend_out[existing_cols]
+    # Keep a stable schema even before enough point-in-time observations have
+    # matured.  Downstream diagnostics can render an honest "not enough
+    # history yet" state instead of crashing or reading legacy backtests.
+    for col in EXPECTED_COLS:
+        if col not in trend_out.columns:
+            trend_out[col] = np.nan
+    trend_out = trend_out[EXPECTED_COLS]
 
 
     trend_out.to_csv(
@@ -651,6 +752,61 @@ def run_regression(train_df, predict_df, raw_df):
     )
 
     print(f"=== WEEKLY TREND CSV SAVED (HORIZONTAL) : {TREND_PATH.name} ===")
+
+    # =========================================================
+    # DAILY TIMING VIEW: last 5 sessions + next 10 sessions
+    # =========================================================
+    DAILY_TREND_PATH = DATA_DIR / "forecast_trend_daily.csv"
+    valid_predict = predict_work.dropna(subset=FEATURE_COLS).sort_values("date")
+    daily_rows = []
+
+    if not valid_predict.empty:
+        latest_pred_row = valid_predict.iloc[-1]
+        daily_X = sm.add_constant(
+            pd.DataFrame([latest_pred_row[FEATURE_COLS]], columns=FEATURE_COLS),
+            has_constant="add"
+        )
+
+        # Five realized sessions, including the latest market date.
+        actual_window = raw_df.sort_values("date").tail(6).copy()
+        for asset in ["QQQ", "SOX", "SP500"]:
+            actual_returns = actual_window[asset].pct_change()
+            for idx in actual_window.index[-5:]:
+                daily_rows.append({
+                    "date": actual_window.loc[idx, "date"],
+                    "asset": asset,
+                    "actual_return": actual_returns.loc[idx],
+                    "predicted_return": np.nan,
+                    "phase": "actual",
+                    "as_of_date": data_date,
+                })
+
+        future_days = future_market_days(data_date, 10)
+        for asset in ["QQQ", "SOX", "SP500"]:
+            for day, future_date in enumerate(future_days, start=1):
+                key = f"{asset}_D{day}_FWD"
+                if key in results:
+                    raw_prediction = float(results[key]["model"].predict(daily_X).iloc[0])
+                    prediction = float(np.clip(
+                        raw_prediction,
+                        results[key]["prediction_lower"],
+                        results[key]["prediction_upper"],
+                    ))
+                else:
+                    prediction = np.nan
+                daily_rows.append({
+                    "date": future_date,
+                    "asset": asset,
+                    "actual_return": np.nan,
+                    "predicted_return": prediction,
+                    "phase": "forecast",
+                    "as_of_date": data_date,
+                })
+
+    pd.DataFrame(daily_rows).to_csv(
+        DAILY_TREND_PATH, index=False, encoding="utf-8-sig"
+    )
+    print(f"=== DAILY TREND CSV SAVED : {DAILY_TREND_PATH.name} ===")
 
 
     # =========================================================
@@ -675,7 +831,7 @@ def run_regression(train_df, predict_df, raw_df):
 
     today_df = merged[
         (merged["as_of_date"] == latest_date) &
-        (merged["target"].isin(["QQQ", "SP500"])) &
+        (merged["target"].isin(["QQQ", "SOX", "SP500"])) &
         (merged["horizon"].isin(["1W", "1M", "6M"]))
     ].copy()
 
@@ -699,7 +855,7 @@ def run_regression(train_df, predict_df, raw_df):
     today_df["predicted_direction"] = today_df["pred_sum"].apply(dir_soft)
 
     # ---- 並び順固定 ----
-    asset_order  = ["QQQ", "SP500"]
+    asset_order  = ["QQQ", "SOX", "SP500"]
     period_order = ["1W", "1M", "6M"]
 
     today_df["target"] = pd.Categorical(
@@ -754,7 +910,7 @@ def run_regression(train_df, predict_df, raw_df):
         end   = pd.Timestamp(row["end_date"]).normalize()
         asset = row["target"]
 
-        if asset not in ["QQQ", "SP500"]:
+        if asset not in ["QQQ", "SOX", "SP500"]:
             return np.nan
 
         dates = raw_px.index

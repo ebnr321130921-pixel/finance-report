@@ -38,7 +38,7 @@ DIAG_PATH  = DATA_DIR / "aegis_sigma_diagnostics.csv"
 OUT_CURRENT = DATA_DIR / "market_decision_current.csv"
 OUT_CHART   = DATA_DIR / "market_decision_chart_weekly.csv"
 
-ASSETS   = ["qqq", "sp"]
+ASSETS   = ["qqq", "sox", "sp"]
 HORIZONS = ["1w", "1m"]
 
 # =========================================================
@@ -54,7 +54,7 @@ trend = pd.read_csv(TREND_PATH, parse_dates=["week"]).sort_values("week")
 
 sigma_records = []
 
-for asset in ["qqq", "sp"]:
+for asset in ASSETS:
     for hz in ["1w", "1m"]:
 
         pred_col = f"{asset}_pred_{hz}_cum_nrst"
@@ -92,9 +92,14 @@ for asset in ["qqq", "sp"]:
         sigma_records.append(tmp)
 
 # --- 横結合 ---
-diag = sigma_records[0]
-for d in sigma_records[1:]:
-    diag = diag.merge(d, on="week", how="outer")
+if sigma_records:
+    diag = sigma_records[0]
+    for d in sigma_records[1:]:
+        diag = diag.merge(d, on="week", how="outer")
+else:
+    # A fresh point-in-time log intentionally has too little history for shock
+    # statistics.  Emit an empty, schema-valid result instead of crashing.
+    diag = pd.DataFrame({"week": trend["week"]})
 
 diag = diag.sort_values("week").reset_index(drop=True)
 
@@ -212,7 +217,7 @@ else:
     current_df = (
         base_df[base_df["week"] == latest_week]
         .assign(
-            asset_order=lambda x: x["asset"].map({"QQQ": 0, "SP": 1}),
+            asset_order=lambda x: x["asset"].map({"QQQ": 0, "SOX": 1, "SP": 2}),
             horizon_order=lambda x: x["horizon"].map({"1W": 0, "1M": 1}),
         )
         .sort_values(["asset_order", "horizon_order"])
@@ -266,4 +271,7 @@ chart_df.to_csv(
 print("=== Market Decision Tables BUILT ===")
 print(f"Current : {OUT_CURRENT.name}")
 print(f"Chart   : {OUT_CHART.name}")
-print(f"Latest week : {latest_week.date()}")
+print(
+    "Latest week : "
+    + (latest_week.date().isoformat() if pd.notna(latest_week) else "not enough history")
+)

@@ -138,7 +138,7 @@ rate_diff = raw_latest["US10Y"] - raw_prev["US10Y"]
 # SUMMARY TABLE
 # =========================================================
 ITEMS = [
-    "QQQ", "SP500", "NASDAQ", "DOW",
+    "QQQ", "SOX", "SP500", "NASDAQ", "DOW",
     "VIX", "US10Y", "USDJPY",
     "RiskScore", "MRDI_Short", "MRDI_Long",
 ]
@@ -340,4 +340,3 @@ else:
 print("=== MARKET SUMMARY GENERATED (FINAL + MAHALANOBIS SCATTER) ===")
 print("Table   :", SUMMARY_TABLE_PATH)
 print("ReturnLog:", DIRECTION_RETURN_LOG_PATH)
-

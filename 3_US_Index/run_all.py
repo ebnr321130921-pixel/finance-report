@@ -6,6 +6,13 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+from runtime_bootstrap import ensure_runtime
+
+ensure_runtime((
+    "numpy", "pandas", "pandas_market_calendars", "scipy", "sklearn",
+    "statsmodels", "yfinance",
+))
+
 BASE = Path(__file__).resolve().parent
 
 PIPELINE = [

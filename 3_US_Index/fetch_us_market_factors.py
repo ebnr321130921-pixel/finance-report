@@ -19,8 +19,10 @@ updated_at_utc = 最終更新時刻（UTC）
 
 import yfinance as yf
 import pandas as pd
+import os
+import tempfile
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # =========================================================
 # PATH
@@ -36,12 +38,15 @@ DB_PATH = DATA_DIR / "market_factors_raw.csv"
 # =========================================================
 START_DATE = "2005-01-01"
 
-US_EQUITY_COLS = ["SP500", "NASDAQ", "DOW", "SPY", "QQQ"]
+US_EQUITY_COLS = ["SP500", "NASDAQ", "DOW", "SPY", "QQQ", "SOX"]
 EXCLUDE_LATEST_CHECK = {"date", "USDJPY", "VIX"}
 MAX_MISSING_LATEST = 3
+MIN_HISTORY_ROWS = 252
+MAX_DATA_AGE_DAYS = 10
 
 TICKERS = {
     "QQQ":    {"ticker": "QQQ",   "kind": "ETF"},
+    "SOX":    {"ticker": "^SOX",  "kind": "INDEX"},
     "SP500":  {"ticker": "^GSPC", "kind": "INDEX"},
     "VIX":    {"ticker": "^VIX",  "kind": "INDEX"},
     "US10Y":  {"ticker": "^TNX",  "kind": "INDEX"},
@@ -133,9 +138,17 @@ def fetch_full() -> pd.DataFrame:
             "No market data could be fetched. Check network/DNS access to Yahoo Finance."
         )
 
-    df = pd.concat(dfs, axis=1, sort=True).sort_index()
+    # A partial download must never replace the last known-good database.  Every
+    # configured series is used by the feature/model pipeline, either directly
+    # or through a derived return, so "warn and continue" creates an unusable
+    # raw file and makes the following pipeline step fail.
     if missing:
-        print(f"[WARN] Missing tickers skipped: {', '.join(missing)}")
+        raise RuntimeError(
+            "Incomplete market download; keeping the existing raw CSV. "
+            f"Missing tickers: {', '.join(missing)}"
+        )
+
+    df = pd.concat(dfs, axis=1, sort=True).sort_index()
 
     df = df.reset_index()
     if df.columns[0] != "date":
@@ -177,7 +190,58 @@ def finalize_raw(df: pd.DataFrame) -> pd.DataFrame:
     fill_cols = [c for c in df.columns if c != "date"]
     df[fill_cols] = df[fill_cols].ffill()
 
+    required_cols = {"date", *TICKERS.keys()}
+    missing_cols = sorted(required_cols.difference(df.columns))
+    if missing_cols:
+        raise RuntimeError(
+            "Raw data validation failed; missing columns: "
+            + ", ".join(missing_cols)
+        )
+    if len(df) < MIN_HISTORY_ROWS:
+        raise RuntimeError(
+            f"Raw data validation failed; only {len(df)} rows were fetched"
+        )
+    if df["date"].duplicated().any() or not df["date"].is_monotonic_increasing:
+        raise RuntimeError("Raw data validation failed; dates are not unique and sorted")
+    if df[list(TICKERS)].isna().any().any():
+        bad = df[list(TICKERS)].columns[df[list(TICKERS)].isna().any()].tolist()
+        raise RuntimeError(
+            "Raw data validation failed; unfillable values remain in: "
+            + ", ".join(bad)
+        )
+
     return df
+
+
+def atomic_write_csv(df: pd.DataFrame, path: Path) -> None:
+    """Write a CSV without exposing a partially written/invalid database."""
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        df.to_csv(tmp_path, index=False)
+        os.replace(tmp_path, path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def validate_freshness(df: pd.DataFrame) -> None:
+    latest = pd.Timestamp(df["date"].max()).date()
+    today_utc = datetime.now(timezone.utc).date()
+    if latest > today_utc + timedelta(days=1):
+        raise RuntimeError(
+            f"Raw data validation failed; latest date {latest} is in the future"
+        )
+    age = (today_utc - latest).days
+    if age > MAX_DATA_AGE_DAYS:
+        raise RuntimeError(
+            f"Raw data validation failed; latest market date {latest} is "
+            f"{age} days old. Keeping the existing raw CSV."
+        )
 
 # =========================================================
 # MAIN
@@ -187,11 +251,12 @@ def main():
 
     df = fetch_full()
     df = finalize_raw(df)
+    validate_freshness(df)
 
     updated_at = datetime.now(timezone.utc).isoformat()
     df["updated_at_utc"] = updated_at
 
-    df.to_csv(DB_PATH, index=False)
+    atomic_write_csv(df, DB_PATH)
 
     print(f"[SAVE] {DB_PATH}")
     print(f"[ROWS] {len(df)}")
